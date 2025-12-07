@@ -1,0 +1,2 @@
+--> this file contains the general structure of the analysis and importaht notes on how to reproduce it
+--> include which files belong only to the preparation and which to the main analysis and which are shared by preparatory steps and analysis
