@@ -1,0 +1,8 @@
+# Ignore everything
+*
+
+# Allow scripts folder
+!scripts/
+
+# Allow .gitignore itself
+!.gitignore
