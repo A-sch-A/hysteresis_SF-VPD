@@ -495,8 +495,8 @@ def plot_percentiles(anomalies, code, fig=None, outer_spec=None):
 
         for label in labels:
             cluster_df = df[df["Cluster"] == label]
-            if len(cluster_df) < 8:
-                continue
+            # if len(cluster_df) < 8:
+            #     continue
             stddev_TAir, stddev_TSM = cluster_df[["TAir", "TSM"]].std().to_numpy()
             slope_mean = cluster_df["SLOPE"].mean()
             area_mean = cluster_df["AREA"].mean()
@@ -583,6 +583,8 @@ def plot_percentiles(anomalies, code, fig=None, outer_spec=None):
 
             # Special case
             if site == "GUF_GUY_GUY" and label == "cold & wet":
+                dx, dy = -4, -0.04
+            if site == "GUF_GUY_GUY" and label == "cold & dry":
                 dx, dy = -4, -0.04
 
             ax.text(
@@ -774,18 +776,18 @@ def plot_hysteresis_main(mean_cycles, fig=None, outer_spec=None):
 
 def plot_patterns(extreme_anomalies, mean_cycles, code):
     # collect (site, cluster) pairs to drop
-    to_drop = []
+    # to_drop = []
 
-    for site, df in extreme_anomalies.items():
-        # group by cluster within this site
-        for cluster_id, sub_df in df.groupby("Cluster"):
-            if len(sub_df) < 8:
-                # print(f"Dropping: site={site}, cluster={cluster_id} (rows={len(sub_df)})")
-                to_drop.append((site, cluster_id))
+    # for site, df in extreme_anomalies.items():
+    # group by cluster within this site
+    # for cluster_id, sub_df in df.groupby("Cluster"):
+    # if len(sub_df) < 8:
+    #     # print(f"Dropping: site={site}, cluster={cluster_id} (rows={len(sub_df)})")
+    #     to_drop.append((site, cluster_id))
 
     # Now remove from mean_cycles
-    for site, cluster_id in to_drop:
-        del mean_cycles[site][cluster_id]
+    # for site, cluster_id in to_drop:
+    # del mean_cycles[site][cluster_id]
 
     fig = plt.figure(figsize=(30, 15))
     outer = gridspec.GridSpec(2, 1, height_ratios=[1, 1], hspace=0.3)
