@@ -12,6 +12,7 @@ from matplotlib import gridspec
 from matplotlib.cm import ScalarMappable, coolwarm
 from matplotlib.colors import Normalize
 from matplotlib.lines import Line2D
+from scipy import stats
 from scipy.spatial import ConvexHull
 
 from config import CSV_ROOT, FOCUS_SITES, GROWING_SEASON_DAYLENGTH
@@ -1027,3 +1028,346 @@ def plot_srs(slope_longterm, area_longterm):
         bbox_to_anchor=(0.28, 0.05),
         ncols=2,
     )
+
+
+def plot_distributions_focus(extreme_anomalies):
+    """Plot distributions of SLOPE (upper row) and AREA (lower row) of percentile clusters per focus site."""
+    # Define linestyles for clusters
+    quadrant_linestyles = {
+        "hot & wet": "solid",
+        "cold & wet": "dashed",
+        "cold & dry": "dashdot",
+        "hot & dry": "dotted",
+    }
+
+    # Define colors
+    slope_color = "#1f77b4"
+    area_color = "#2c2c2c"
+
+    # Get site names
+    sites = list(extreme_anomalies.keys())
+    n_sites = len(sites)
+
+    # Create figure with 2 rows (SLOPE and AREA) and n_sites columns
+    fig, axes = plt.subplots(2, n_sites, figsize=(6 * n_sites, 10))
+
+    # Ensure axes is 2D array even with single site
+    if n_sites == 1:
+        axes = axes.reshape(2, 1)
+
+    # Plot for each site
+    for col_idx, site in enumerate(sites):
+        df = extreme_anomalies[site]
+
+        # Get unique clusters (excluding None)
+        clusters = df[df["Cluster"].notna()]["Cluster"].unique()
+
+        # --- SLOPE distributions (upper row) ---
+        ax_slope = axes[0, col_idx]
+
+        for cluster in clusters:
+            cluster_data = df[df["Cluster"] == cluster]["SLOPE"].values
+
+            if len(cluster_data) > 1:
+                # Plot KDE for clusters with multiple points
+                try:
+                    kde = stats.gaussian_kde(cluster_data)
+                    x_range = np.linspace(
+                        cluster_data.min() - 0.1, cluster_data.max() + 0.1, 200
+                    )
+                    density = kde(x_range)
+                    ax_slope.plot(
+                        x_range,
+                        density,
+                        linestyle=quadrant_linestyles[cluster],
+                        color=slope_color,
+                        linewidth=4,
+                        label=cluster,
+                        alpha=0.7,
+                        zorder=3,
+                    )
+
+                    # Plot points on the distribution curve
+                    point_densities = kde(cluster_data)
+                    ax_slope.scatter(
+                        cluster_data,
+                        point_densities,
+                        alpha=0.6,
+                        s=30,
+                        color="crimson",
+                        edgecolors="white",
+                        linewidth=0.5,
+                        zorder=2,
+                    )
+                except:
+                    # If KDE fails, just plot points at y=0
+                    ax_slope.scatter(
+                        cluster_data,
+                        np.zeros_like(cluster_data),
+                        alpha=0.6,
+                        s=30,
+                        color="crimson",
+                        edgecolors="white",
+                        linewidth=0.5,
+                        zorder=2,
+                    )
+            else:
+                # For single points, plot at y=0 with a marker
+                ax_slope.scatter(
+                    cluster_data,
+                    [0],
+                    alpha=0.6,
+                    s=30,
+                    color="crimson",
+                    edgecolors="white",
+                    linewidth=0.5,
+                    label=cluster,
+                    zorder=2,
+                )
+
+        ax_slope.set_xlabel("sSLOPE", fontsize=11, fontweight="bold")
+        ax_slope.set_ylabel("Density", fontsize=11)
+        ax_slope.set_title(f"{site}", fontsize=12, fontweight="bold")
+        ax_slope.legend(loc="best", fontsize=9)
+        ax_slope.grid(True, alpha=0.3, linestyle="--")
+        ax_slope.axhline(y=0, color="gray", linestyle="-", linewidth=0.5)
+
+        # --- AREA distributions (lower row) ---
+        ax_area = axes[1, col_idx]
+
+        for cluster in clusters:
+            cluster_data = df[df["Cluster"] == cluster]["AREA"].values
+
+            if len(cluster_data) > 1:
+                # Plot KDE for clusters with multiple points
+                try:
+                    kde = stats.gaussian_kde(cluster_data)
+                    x_range = np.linspace(
+                        cluster_data.min() - 0.05, cluster_data.max() + 0.05, 200
+                    )
+                    density = kde(x_range)
+                    ax_area.plot(
+                        x_range,
+                        density,
+                        linestyle=quadrant_linestyles[cluster],
+                        color=area_color,
+                        linewidth=4,
+                        label=cluster,
+                        alpha=0.7,
+                        zorder=3,
+                    )
+
+                    # Plot points on the distribution curve
+                    point_densities = kde(cluster_data)
+                    ax_area.scatter(
+                        cluster_data,
+                        point_densities,
+                        alpha=0.6,
+                        s=30,
+                        color="crimson",
+                        edgecolors="white",
+                        linewidth=0.5,
+                        zorder=2,
+                    )
+                except:
+                    # If KDE fails, just plot points at y=0
+                    ax_area.scatter(
+                        cluster_data,
+                        np.zeros_like(cluster_data),
+                        alpha=0.6,
+                        s=30,
+                        color="crimson",
+                        edgecolors="white",
+                        linewidth=0.5,
+                        zorder=2,
+                    )
+            else:
+                # For single points, plot at y=0 with a marker
+                ax_area.scatter(
+                    cluster_data,
+                    [0],
+                    alpha=0.6,
+                    s=30,
+                    color="crimson",
+                    edgecolors="white",
+                    linewidth=0.5,
+                    label=cluster,
+                    zorder=2,
+                )
+
+        ax_area.set_xlabel("nAREA", fontsize=11, fontweight="bold")
+        ax_area.set_ylabel("Density", fontsize=11)
+        ax_area.legend(loc="best", fontsize=9)
+        ax_area.grid(True, alpha=0.3, linestyle="--")
+        ax_area.axhline(y=0, color="gray", linestyle="-", linewidth=0.5)
+
+        # For SLOPE legend
+        legend_slope = ax_slope.legend(loc="best", fontsize=9)
+        for handle in legend_slope.legend_handles:
+            handle.set_linewidth(2.5)
+            if hasattr(handle, "set_markersize"):
+                handle.set_markersize(8)
+        # Make legend lines longer
+        for line in legend_slope.get_lines():
+            line.set_linewidth(2.5)
+        ax_slope.legend(loc="best", fontsize=9, handlelength=3.5, handleheight=1.5)
+
+        # For AREA legend
+        legend_area = ax_area.legend(loc="best", fontsize=9)
+        for handle in legend_area.legend_handles:
+            handle.set_linewidth(2.5)
+            if hasattr(handle, "set_markersize"):
+                handle.set_markersize(8)
+        # Make legend lines longer
+        for line in legend_area.get_lines():
+            line.set_linewidth(2.5)
+        ax_area.legend(loc="best", fontsize=9, handlelength=3.5, handleheight=1.5)
+
+    plt.tight_layout()
+
+    return fig
+
+
+def plot_distribution_TSM_TAir(anomalies_TAir_TSM):
+    """
+    Plot distributions of TAir and TSM anomalies for each SLOPE-AREA combination.
+    """
+    # Define colors for each combination
+    combination_colors = {
+        "high SLOPE & low AREA": "#1f77b4",  # blue
+        "low SLOPE & high AREA": "#d62728",  # red
+        "high SLOPE & high AREA": "#2c2c2c",  # black
+        "low SLOPE & low AREA": "#7f7f7f",  # grey
+    }
+
+    # Create figure with 2 panels (TAir and TSM)
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+    # Get unique combinations
+    combinations = anomalies_TAir_TSM["combination"].unique()
+
+    # --- TAir anomaly distribution (left panel) ---
+    ax_tair = axes[0]
+
+    for combination in combinations:
+        data = anomalies_TAir_TSM[anomalies_TAir_TSM["combination"] == combination][
+            "TAir_anomaly"
+        ]
+
+        if len(data) > 1:
+            # Plot KDE
+            from scipy import stats
+
+            try:
+                kde = stats.gaussian_kde(data)
+                x_range = np.linspace(data.min() - 1, data.max() + 1, 300)
+                density = kde(x_range)
+
+                # Calculate mean
+                mean_val = data.mean()
+
+                # SECOND: Plot KDE line (on top) with mean in label
+                ax_tair.plot(
+                    x_range,
+                    density,
+                    color=combination_colors[combination],
+                    linewidth=2.5,
+                    label=f"{combination} (μ={mean_val:.2f}°C)",
+                    alpha=0.8,
+                    zorder=3,
+                )
+
+                # Add a subtle fill under the curve
+                ax_tair.fill_between(
+                    x_range,
+                    density,
+                    alpha=0.2,
+                    color=combination_colors[combination],
+                    zorder=1,
+                )
+
+                # Add vertical line at the mean
+                ax_tair.axvline(
+                    x=mean_val,
+                    color=combination_colors[combination],
+                    linestyle="--",
+                    linewidth=2,
+                    alpha=0.7,
+                    zorder=3,
+                )
+            except:
+                pass
+
+    ax_tair.set_xlabel("TAir Anomaly (°C)", fontsize=12, fontweight="bold")
+    ax_tair.set_ylabel("Density", fontsize=12, fontweight="bold")
+    ax_tair.set_title(
+        "Air Temperature Anomaly Distribution", fontsize=13, fontweight="bold"
+    )
+    ax_tair.legend(loc="best", fontsize=9, handlelength=1, handleheight=1.5)
+    ax_tair.grid(True, alpha=0.3, linestyle="--", zorder=0)
+    ax_tair.axvline(x=0, color="black", linestyle="-", linewidth=1, alpha=0.5, zorder=1)
+
+    # --- TSM anomaly distribution (right panel) ---
+    ax_tsm = axes[1]
+
+    for combination in combinations:
+        data = anomalies_TAir_TSM[anomalies_TAir_TSM["combination"] == combination][
+            "TSM_anomaly"
+        ]
+
+        if len(data) > 1:
+            # Plot KDE
+            from scipy import stats
+
+            try:
+                kde = stats.gaussian_kde(data)
+                x_range = np.linspace(data.min() - 0.01, data.max() + 0.01, 300)
+                density = kde(x_range)
+
+                # Calculate mean
+                mean_val = data.mean()
+
+                # SECOND: Plot KDE line (on top) with mean in label
+                ax_tsm.plot(
+                    x_range,
+                    density,
+                    color=combination_colors[combination],
+                    linewidth=2.5,
+                    label=f"{combination} (μ={mean_val:.3f})",
+                    alpha=0.8,
+                    zorder=3,
+                )
+
+                # Add a subtle fill under the curve
+                ax_tsm.fill_between(
+                    x_range,
+                    density,
+                    alpha=0.2,
+                    color=combination_colors[combination],
+                    zorder=1,
+                )
+
+                # Add vertical line at the mean
+                ax_tsm.axvline(
+                    x=mean_val,
+                    color=combination_colors[combination],
+                    linestyle="--",
+                    linewidth=2,
+                    alpha=0.7,
+                    zorder=3,
+                )
+            except:
+                pass
+
+    ax_tsm.set_xlabel("TSM Anomaly (cm³/cm³)", fontsize=12, fontweight="bold")
+    ax_tsm.set_ylabel("Density", fontsize=12, fontweight="bold")
+    ax_tsm.set_title(
+        "Soil Moisture Anomaly Distribution", fontsize=13, fontweight="bold"
+    )
+    ax_tsm.legend(loc="best", fontsize=9, handlelength=1, handleheight=1.5)
+    ax_tsm.grid(True, alpha=0.3, linestyle="--", zorder=0)
+    ax_tsm.axvline(x=0, color="black", linestyle="-", linewidth=1, alpha=0.5, zorder=1)
+
+    plt.tight_layout()
+
+    return fig

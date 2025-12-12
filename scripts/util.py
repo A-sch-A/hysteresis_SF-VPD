@@ -577,3 +577,18 @@ def get_cluster_cycles(nested_dates, subdaily_data):
             all_cycles[site][cluster_id] = cluster_data
 
     return mean_cycles, all_cycles
+
+
+def get_anomalies_TAIR_TSM(growing_season_standardized):
+    """
+    Extract TSM, TAir, SLOPE, AREA columns and calculate anomalies for TAir and TSM for distributions plot.
+    """
+    # Select only the required columns
+    selected_columns = ["TSM", "TAir", "SLOPE", "AREA"]
+    df_subset = growing_season_standardized[selected_columns].copy()
+
+    # Calculate anomalies (deviation from mean)
+    df_subset["TAir_anomaly"] = df_subset["TAir"] - df_subset["TAir"].mean()
+    df_subset["TSM_anomaly"] = df_subset["TSM"] - df_subset["TSM"].mean()
+
+    return df_subset

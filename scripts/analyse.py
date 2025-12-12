@@ -8,6 +8,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 from config import FIG_DIR, GROWING_SEASON_DAYLENGTH, GROWING_SEASON_TEMP
 from util import (
+    get_anomalies_TAIR_TSM,
     get_classification,
     get_cluster_cycles,
     get_cluster_dates,
@@ -23,6 +24,8 @@ from util import (
 from visualization import (
     plot_classification,
     plot_cycle,
+    plot_distribution_TSM_TAir,
+    plot_distributions_focus,
     plot_heatmap_summary,
     # plot_map_summary,
     plot_patterns,
@@ -49,6 +52,7 @@ def process_all_sites(
 ) -> Dict[str, Any]:
     site_outputs: Dict[str, SiteOutputs] = {}
     growing_season_list: List[pd.DataFrame] = []
+    growing_season_anom_list = []
     global_subdaily_list: List[pd.DataFrame] = []
     subdaily_focus: Dict[str, pd.DataFrame] = {}
     slope_coefficients_to_hourly = pd.DataFrame()
@@ -105,6 +109,12 @@ def process_all_sites(
 
         growing_season_standardized = get_standardized_metrics(growing_season)
         growing_season_list.append(growing_season_standardized)
+        # print(growing_season_standardized)
+
+        # Get anomalies
+        growing_season_stand_anom = get_anomalies_TAIR_TSM(growing_season_standardized)
+        growing_season_anom_list.append(growing_season_stand_anom)
+        # print(growing_season_stand_anom)
 
         # ----------------- extra handling of sites in focus:
         if site in focus_sites:
@@ -136,6 +146,7 @@ def process_all_sites(
         "all_seasonal_correlations": all_seasonal_correlations,
         "selected_sites": selected_sites,
         "focus_growing_season": focus_growing_season,
+        "growing_season_stand_anom_list": growing_season_anom_list,
     }
 
 
@@ -356,6 +367,7 @@ def calc_hysteresis_patterns(
 
     nested_dates = get_cluster_dates(extreme_anomalies)
     mean_cycles, all_cycles = get_cluster_cycles(nested_dates, subdaily_data_local)
+
     return {
         "extreme_anomalies": extreme_anomalies,
         "mean_cycles": mean_cycles,
@@ -372,6 +384,78 @@ def plot_hysteresis_patterns(
     fig = plot_patterns(
         calc_obj["extreme_anomalies"], calc_obj["mean_cycles"], code="supp"
     )
+    with PdfPages(out_pdf) as pp:
+        pp.savefig(fig, bbox_inches="tight")
+        plt.close(fig)
+
+
+def plot_distributions_metrics(
+    extreme_anomalies, out_pdf=str(FIG_DIR / "distributions_focus.pdf")
+):
+    fig = plot_distributions_focus(extreme_anomalies)
+    # Save to PDF
+    with PdfPages(out_pdf) as pp:
+        pp.savefig(fig, bbox_inches="tight")
+        plt.close(fig)
+
+
+def calc_distributions_anomalies(growing_season_anom_list):
+    """
+    Calculate anomalies of TSM and TAir at 20% percentiles of combinations of SLOPE and AREA.
+    """
+    # Combine list of dataframes into one
+    combined_df = pd.concat(growing_season_anom_list, ignore_index=False)
+
+    # Calculate 20th and 80th percentiles for SLOPE and AREA
+    slope_20 = combined_df["SLOPE"].quantile(0.20)
+    slope_80 = combined_df["SLOPE"].quantile(0.80)
+    area_20 = combined_df["AREA"].quantile(0.20)
+    area_80 = combined_df["AREA"].quantile(0.80)
+
+    # Define the 4 combinations based on percentiles
+    # high SLOPE & low AREA
+    high_slope_low_area = combined_df[
+        (combined_df["SLOPE"] >= slope_80) & (combined_df["AREA"] <= area_20)
+    ][["TAir_anomaly", "TSM_anomaly"]].copy()
+    high_slope_low_area["combination"] = "high SLOPE & low AREA"
+
+    # low SLOPE & high AREA
+    low_slope_high_area = combined_df[
+        (combined_df["SLOPE"] <= slope_20) & (combined_df["AREA"] >= area_80)
+    ][["TAir_anomaly", "TSM_anomaly"]].copy()
+    low_slope_high_area["combination"] = "low SLOPE & high AREA"
+
+    # high SLOPE & high AREA
+    high_slope_high_area = combined_df[
+        (combined_df["SLOPE"] >= slope_80) & (combined_df["AREA"] >= area_80)
+    ][["TAir_anomaly", "TSM_anomaly"]].copy()
+    high_slope_high_area["combination"] = "high SLOPE & high AREA"
+
+    # low SLOPE & low AREA
+    low_slope_low_area = combined_df[
+        (combined_df["SLOPE"] <= slope_20) & (combined_df["AREA"] <= area_20)
+    ][["TAir_anomaly", "TSM_anomaly"]].copy()
+    low_slope_low_area["combination"] = "low SLOPE & low AREA"
+
+    # Combine all combinations into one dataframe
+    anomalies_TAir_TSM = pd.concat(
+        [
+            high_slope_low_area,
+            low_slope_high_area,
+            high_slope_high_area,
+            low_slope_low_area,
+        ],
+        ignore_index=False,
+    )
+
+    return anomalies_TAir_TSM
+
+
+def plot_distributions_anomalies(
+    anomalies_TAir_TSM, out_pdf=str(FIG_DIR / "distributions_anomalies.pdf")
+):
+    fig = plot_distribution_TSM_TAir(anomalies_TAir_TSM)
+    # Save to PDF
     with PdfPages(out_pdf) as pp:
         pp.savefig(fig, bbox_inches="tight")
         plt.close(fig)

@@ -19,12 +19,15 @@ import pandas as pd
 from analyse import (
     calc_climate_classification,
     calc_cycles_all_sites,
+    calc_distributions_anomalies,
     # calc_heatmap,
     calc_hysteresis_patterns,
     # calc_maps_of_coefficients,
     calc_samplerates,
     plot_climate_classification,
     plot_cycles_all_sites,
+    plot_distributions_anomalies,
+    plot_distributions_metrics,
     plot_heatmap,
     plot_hysteresis_patterns,
     # plot_maps_of_coefficients,
@@ -110,6 +113,7 @@ def main():
     slope_coefficients_to_hourly = agg["slope_coefficients_to_hourly"]
     area_coefficients_to_hourly = agg["area_coefficients_to_hourly"]
     all_seasonal_correlations = agg["all_seasonal_correlations"]
+    growing_season_anom_list = agg["growing_season_stand_anom_list"]
 
     # # ---------- 1. classification_climate for real observations ----------
     df_clusters = calc_climate_classification(growing_season_list)
@@ -128,10 +132,14 @@ def main():
     # plot_maps_of_coefficients(maps_coefficients)
 
     # # ---------- 5. patterns_supplements ----------
-    hyseresis_patterns = calc_hysteresis_patterns(
+    hysteresis_patterns = calc_hysteresis_patterns(
         agg["focus_growing_season"], subdaily_focus
     )
-    plot_hysteresis_patterns(hyseresis_patterns)
+    plot_hysteresis_patterns(hysteresis_patterns)
+    plot_distributions_metrics(hysteresis_patterns["extreme_anomalies"])
+
+    anomalies_TAir_TSM = calc_distributions_anomalies(growing_season_anom_list)
+    plot_distributions_anomalies(anomalies_TAir_TSM)
 
     # # ---------- 6. samplerates
     samplerates = calc_samplerates(
