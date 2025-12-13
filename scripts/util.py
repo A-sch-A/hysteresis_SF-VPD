@@ -592,3 +592,95 @@ def get_anomalies_TAIR_TSM(growing_season_standardized):
     df_subset["TSM_anomaly"] = df_subset["TSM"] - df_subset["TSM"].mean()
 
     return df_subset
+
+
+def get_metadata_per_site(CSV_ROOT, sites):
+    """
+    Extract site metadata (DBH, LAI, soil texture) for selected sites.
+    """
+    from pathlib import Path
+
+    CSV_ROOT = Path(CSV_ROOT)
+    plant_dir = CSV_ROOT / "plant"
+
+    if not plant_dir.exists():
+        raise FileNotFoundError(f"Plant directory not found: {plant_dir}")
+
+    metadata_list = []
+
+    # Only process sites in the provided list
+    for site_id in sites:
+        try:
+            # Read stand metadata for LAI and soil texture
+            stand_file = plant_dir / f"{site_id}_stand_md.csv"
+
+            if not stand_file.exists():
+                print(f"Warning: Stand metadata file not found for {site_id}")
+                metadata_list.append(
+                    {
+                        "Site": site_id,
+                        "DBH_mean": np.nan,
+                        "LAI": np.nan,
+                        "soil_texture": np.nan,
+                    }
+                )
+                continue
+
+            stand_md = pd.read_csv(stand_file)
+
+            if len(stand_md) > 0:
+                lai = (
+                    stand_md["st_lai"].iloc[0]
+                    if "st_lai" in stand_md.columns
+                    else np.nan
+                )
+                soil_texture = (
+                    stand_md["st_USDA_soil_texture"].iloc[0]
+                    if "st_USDA_soil_texture" in stand_md.columns
+                    else np.nan
+                )
+            else:
+                lai = np.nan
+                soil_texture = np.nan
+
+            # Read plant metadata for DBH
+            plant_file = plant_dir / f"{site_id}_plant_md.csv"
+
+            if plant_file.exists():
+                plant_md = pd.read_csv(plant_file)
+
+                # Calculate mean DBH across all plants at the site
+                if "pl_dbh" in plant_md.columns and len(plant_md) > 0:
+                    dbh_mean = plant_md["pl_dbh"].mean()
+                else:
+                    dbh_mean = np.nan
+            else:
+                dbh_mean = np.nan
+                print(f"Warning: Plant metadata file not found for {site_id}")
+
+            # Store metadata for this site
+            metadata_list.append(
+                {
+                    "Site": site_id,
+                    "DBH_mean": dbh_mean,
+                    "LAI": lai,
+                    "soil_texture": soil_texture,
+                }
+            )
+
+        except Exception as e:
+            print(f"Error processing {site_id}: {e}")
+            metadata_list.append(
+                {
+                    "Site": site_id,
+                    "DBH_mean": np.nan,
+                    "LAI": np.nan,
+                    "soil_texture": np.nan,
+                }
+            )
+
+    # Create DataFrame with sites as index
+    metadata_df = pd.DataFrame(metadata_list)
+    metadata_df = metadata_df.set_index("Site")
+
+    return metadata_df

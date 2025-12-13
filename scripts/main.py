@@ -116,7 +116,9 @@ def main():
     area_coefficients_to_hourly = agg["area_coefficients_to_hourly"]
     all_seasonal_correlations = agg["all_seasonal_correlations"]
     growing_season_anom_list = agg["growing_season_stand_anom_list"]
-
+    site_metadata = agg["site_metadata"]
+    print(site_metadata)
+    exit()
     # # ---------- 1. classification_climate for real observations ----------
     df_clusters = calc_climate_classification(growing_season_list)
     plot_climate_classification(df_clusters)

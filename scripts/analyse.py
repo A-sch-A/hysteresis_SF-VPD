@@ -6,7 +6,7 @@ import pandas as pd
 from matplotlib import gridspec
 from matplotlib.backends.backend_pdf import PdfPages
 
-from config import FIG_DIR, GROWING_SEASON_DAYLENGTH, GROWING_SEASON_TEMP
+from config import CSV_ROOT, FIG_DIR, GROWING_SEASON_DAYLENGTH, GROWING_SEASON_TEMP
 from util import (
     get_anomalies_TAIR_TSM,
     get_classification,
@@ -15,6 +15,7 @@ from util import (
     get_combined_variables,
     get_concept,
     get_correlations_to_hourly,
+    get_metadata_per_site,
     get_percentiles,
     get_seasonal,
     get_seasonal_cycle_correlations,
@@ -61,6 +62,9 @@ def process_all_sites(
     all_seasonal_correlations: Dict[str, Any] = {}
     selected_sites: List[str] = sites
     focus_growing_season: Dict[str, pd.DataFrame] = {}
+
+    # Get site metadata
+    site_metadata = get_metadata_per_site(CSV_ROOT, sites)
 
     for site in sites:
         # load site data
@@ -148,6 +152,7 @@ def process_all_sites(
         "selected_sites": selected_sites,
         "focus_growing_season": focus_growing_season,
         "growing_season_stand_anom_list": growing_season_anom_list,
+        "site_metadata": site_metadata,
     }
 
 
