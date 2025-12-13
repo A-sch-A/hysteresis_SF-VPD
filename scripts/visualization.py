@@ -1300,9 +1300,9 @@ def plot_distribution_TSM_TAir(anomalies_TAir_TSM):
 
     ax_tair.set_xlabel("TAir Anomaly (°C)", fontsize=12, fontweight="bold")
     ax_tair.set_ylabel("Density", fontsize=12, fontweight="bold")
-    ax_tair.set_title(
-        "Air Temperature Anomaly Distribution", fontsize=13, fontweight="bold"
-    )
+    # ax_tair.set_title(
+    #     "Air Temperature Anomaly Distribution", fontsize=13, fontweight="bold"
+    # )
     ax_tair.legend(loc="best", fontsize=9, handlelength=1, handleheight=1.5)
     ax_tair.grid(True, alpha=0.3, linestyle="--", zorder=0)
     ax_tair.axvline(x=0, color="black", linestyle="-", linewidth=1, alpha=0.5, zorder=1)
@@ -1361,9 +1361,9 @@ def plot_distribution_TSM_TAir(anomalies_TAir_TSM):
 
     ax_tsm.set_xlabel("TSM Anomaly (cm³/cm³)", fontsize=12, fontweight="bold")
     ax_tsm.set_ylabel("Density", fontsize=12, fontweight="bold")
-    ax_tsm.set_title(
-        "Soil Moisture Anomaly Distribution", fontsize=13, fontweight="bold"
-    )
+    # ax_tsm.set_title(
+    #     "Soil Moisture Anomaly Distribution", fontsize=13, fontweight="bold"
+    # )
     ax_tsm.legend(loc="best", fontsize=9, handlelength=1, handleheight=1.5)
     ax_tsm.grid(True, alpha=0.3, linestyle="--", zorder=0)
     ax_tsm.axvline(x=0, color="black", linestyle="-", linewidth=1, alpha=0.5, zorder=1)
@@ -1440,9 +1440,9 @@ def plot_distributions_SLOPE_AREA(slope_area_distributions):
             except:
                 pass
 
-    ax_slope.set_xlabel("SLOPE", fontsize=12, fontweight="bold")
+    ax_slope.set_xlabel("sSLOPE", fontsize=12, fontweight="bold")
     ax_slope.set_ylabel("Density", fontsize=12, fontweight="bold")
-    ax_slope.set_title("Slope Distribution", fontsize=13, fontweight="bold")
+    # ax_slope.set_title("Slope Distribution", fontsize=13, fontweight="bold")
     ax_slope.legend(loc="best", fontsize=9, handlelength=1, handleheight=1.5)
     ax_slope.grid(True, alpha=0.3, linestyle="--", zorder=0)
     ax_slope.axvline(
@@ -1501,9 +1501,9 @@ def plot_distributions_SLOPE_AREA(slope_area_distributions):
             except:
                 pass
 
-    ax_area.set_xlabel("AREA", fontsize=12, fontweight="bold")
+    ax_area.set_xlabel("nAREA", fontsize=12, fontweight="bold")
     ax_area.set_ylabel("Density", fontsize=12, fontweight="bold")
-    ax_area.set_title("Area Distribution", fontsize=13, fontweight="bold")
+    # ax_area.set_title("Area Distribution", fontsize=13, fontweight="bold")
     ax_area.legend(loc="best", fontsize=9, handlelength=1, handleheight=1.5)
     ax_area.grid(True, alpha=0.3, linestyle="--", zorder=0)
     ax_area.axvline(x=0, color="black", linestyle="-", linewidth=1, alpha=0.5, zorder=1)
