@@ -1371,3 +1371,143 @@ def plot_distribution_TSM_TAir(anomalies_TAir_TSM):
     plt.tight_layout()
 
     return fig
+
+
+def plot_distributions_SLOPE_AREA(slope_area_distributions):
+    # Define colors for each combination
+    combination_colors = {
+        "high TAir & low TSM": "#d62728",  # red
+        "low TAir & high TSM": "#1f77b4",  # blue
+        "high TAir & high TSM": "#2c2c2c",  # black
+        "low TAir & low TSM": "#7f7f7f",  # grey
+    }
+
+    # Create figure with 2 panels (SLOPE and AREA)
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+    # Get unique combinations
+    combinations = slope_area_distributions["combination"].unique()
+
+    # --- SLOPE distribution (left panel) ---
+    ax_slope = axes[0]
+
+    for combination in combinations:
+        data = slope_area_distributions[
+            slope_area_distributions["combination"] == combination
+        ]["SLOPE"]
+
+        if len(data) > 1:
+            # Plot KDE
+            from scipy import stats
+
+            try:
+                kde = stats.gaussian_kde(data)
+                x_range = np.linspace(data.min() - 0.1, data.max() + 0.1, 300)
+                density = kde(x_range)
+
+                # Calculate mean
+                mean_val = data.mean()
+
+                # Plot KDE line with mean in label
+                ax_slope.plot(
+                    x_range,
+                    density,
+                    color=combination_colors[combination],
+                    linewidth=2.5,
+                    label=f"{combination} (μ={mean_val:.3f})",
+                    alpha=0.8,
+                    zorder=3,
+                )
+
+                # Add a subtle fill under the curve
+                ax_slope.fill_between(
+                    x_range,
+                    density,
+                    alpha=0.2,
+                    color=combination_colors[combination],
+                    zorder=1,
+                )
+
+                # Add vertical line at the mean
+                ax_slope.axvline(
+                    x=mean_val,
+                    color=combination_colors[combination],
+                    linestyle="--",
+                    linewidth=2,
+                    alpha=0.7,
+                    zorder=3,
+                )
+            except:
+                pass
+
+    ax_slope.set_xlabel("SLOPE", fontsize=12, fontweight="bold")
+    ax_slope.set_ylabel("Density", fontsize=12, fontweight="bold")
+    ax_slope.set_title("Slope Distribution", fontsize=13, fontweight="bold")
+    ax_slope.legend(loc="best", fontsize=9, handlelength=1, handleheight=1.5)
+    ax_slope.grid(True, alpha=0.3, linestyle="--", zorder=0)
+    ax_slope.axvline(
+        x=0, color="black", linestyle="-", linewidth=1, alpha=0.5, zorder=1
+    )
+
+    # --- AREA distribution (right panel) ---
+    ax_area = axes[1]
+
+    for combination in combinations:
+        data = slope_area_distributions[
+            slope_area_distributions["combination"] == combination
+        ]["AREA"]
+
+        if len(data) > 1:
+            # Plot KDE
+            from scipy import stats
+
+            try:
+                kde = stats.gaussian_kde(data)
+                x_range = np.linspace(data.min() - 0.01, data.max() + 0.01, 300)
+                density = kde(x_range)
+
+                # Calculate mean
+                mean_val = data.mean()
+
+                # Plot KDE line with mean in label
+                ax_area.plot(
+                    x_range,
+                    density,
+                    color=combination_colors[combination],
+                    linewidth=2.5,
+                    label=f"{combination} (μ={mean_val:.3f})",
+                    alpha=0.8,
+                    zorder=3,
+                )
+
+                # Add a subtle fill under the curve
+                ax_area.fill_between(
+                    x_range,
+                    density,
+                    alpha=0.2,
+                    color=combination_colors[combination],
+                    zorder=1,
+                )
+
+                # Add vertical line at the mean
+                ax_area.axvline(
+                    x=mean_val,
+                    color=combination_colors[combination],
+                    linestyle="--",
+                    linewidth=2,
+                    alpha=0.7,
+                    zorder=3,
+                )
+            except:
+                pass
+
+    ax_area.set_xlabel("AREA", fontsize=12, fontweight="bold")
+    ax_area.set_ylabel("Density", fontsize=12, fontweight="bold")
+    ax_area.set_title("Area Distribution", fontsize=13, fontweight="bold")
+    ax_area.legend(loc="best", fontsize=9, handlelength=1, handleheight=1.5)
+    ax_area.grid(True, alpha=0.3, linestyle="--", zorder=0)
+    ax_area.axvline(x=0, color="black", linestyle="-", linewidth=1, alpha=0.5, zorder=1)
+
+    plt.tight_layout()
+
+    return fig

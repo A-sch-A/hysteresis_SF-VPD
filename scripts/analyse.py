@@ -26,6 +26,7 @@ from visualization import (
     plot_cycle,
     plot_distribution_TSM_TAir,
     plot_distributions_focus,
+    plot_distributions_SLOPE_AREA,
     plot_heatmap_summary,
     # plot_map_summary,
     plot_patterns,
@@ -455,6 +456,68 @@ def plot_distributions_anomalies(
     anomalies_TAir_TSM, out_pdf=str(FIG_DIR / "distributions_anomalies.pdf")
 ):
     fig = plot_distribution_TSM_TAir(anomalies_TAir_TSM)
+    # Save to PDF
+    with PdfPages(out_pdf) as pp:
+        pp.savefig(fig, bbox_inches="tight")
+        plt.close(fig)
+
+
+def calc_distributions_slope_area(growing_season_anom_list):
+    """
+    Calculate SLOPE and AREA distributions at 20% percentiles of combinations of TAir_anomaly and TSM_anomaly.
+    """
+    # Combine list of dataframes into one
+    combined_df = pd.concat(growing_season_anom_list, ignore_index=False)
+
+    # Calculate 20th and 80th percentiles for TAir_anomaly and TSM_anomaly
+    tair_20 = combined_df["TAir_anomaly"].quantile(0.20)
+    tair_80 = combined_df["TAir_anomaly"].quantile(0.80)
+    tsm_20 = combined_df["TSM_anomaly"].quantile(0.20)
+    tsm_80 = combined_df["TSM_anomaly"].quantile(0.80)
+
+    # Define the 4 combinations based on percentiles
+    # high TAir anomaly & low TSM anomaly
+    high_tair_low_tsm = combined_df[
+        (combined_df["TAir_anomaly"] >= tair_80)
+        & (combined_df["TSM_anomaly"] <= tsm_20)
+    ][["SLOPE", "AREA"]].copy()
+    high_tair_low_tsm["combination"] = "high TAir & low TSM"
+
+    # low TAir anomaly & high TSM anomaly
+    low_tair_high_tsm = combined_df[
+        (combined_df["TAir_anomaly"] <= tair_20)
+        & (combined_df["TSM_anomaly"] >= tsm_80)
+    ][["SLOPE", "AREA"]].copy()
+    low_tair_high_tsm["combination"] = "low TAir & high TSM"
+
+    # high TAir anomaly & high TSM anomaly
+    high_tair_high_tsm = combined_df[
+        (combined_df["TAir_anomaly"] >= tair_80)
+        & (combined_df["TSM_anomaly"] >= tsm_80)
+    ][["SLOPE", "AREA"]].copy()
+    high_tair_high_tsm["combination"] = "high TAir & high TSM"
+
+    # low TAir anomaly & low TSM anomaly
+    low_tair_low_tsm = combined_df[
+        (combined_df["TAir_anomaly"] <= tair_20)
+        & (combined_df["TSM_anomaly"] <= tsm_20)
+    ][["SLOPE", "AREA"]].copy()
+    low_tair_low_tsm["combination"] = "low TAir & low TSM"
+
+    # Combine all combinations into one dataframe
+    slope_area_distributions = pd.concat(
+        [high_tair_low_tsm, low_tair_high_tsm, high_tair_high_tsm, low_tair_low_tsm],
+        ignore_index=False,
+    )
+
+    return slope_area_distributions
+
+
+def plot_distributions_slope_area(
+    slope_area_distributions,
+    out_pdf=str(FIG_DIR / "distributions_anomalies_SLOPE_AREA.pdf"),
+):
+    fig = plot_distributions_SLOPE_AREA(slope_area_distributions)
     # Save to PDF
     with PdfPages(out_pdf) as pp:
         pp.savefig(fig, bbox_inches="tight")

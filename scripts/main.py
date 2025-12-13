@@ -20,6 +20,7 @@ from analyse import (
     calc_climate_classification,
     calc_cycles_all_sites,
     calc_distributions_anomalies,
+    calc_distributions_slope_area,
     # calc_heatmap,
     calc_hysteresis_patterns,
     # calc_maps_of_coefficients,
@@ -28,6 +29,7 @@ from analyse import (
     plot_cycles_all_sites,
     plot_distributions_anomalies,
     plot_distributions_metrics,
+    plot_distributions_slope_area,
     plot_heatmap,
     plot_hysteresis_patterns,
     # plot_maps_of_coefficients,
@@ -140,6 +142,9 @@ def main():
 
     anomalies_TAir_TSM = calc_distributions_anomalies(growing_season_anom_list)
     plot_distributions_anomalies(anomalies_TAir_TSM)
+
+    distributions_SLOPE_AREA = calc_distributions_slope_area(growing_season_anom_list)
+    plot_distributions_slope_area(distributions_SLOPE_AREA)
 
     # # ---------- 6. samplerates
     samplerates = calc_samplerates(
