@@ -5,8 +5,9 @@ import numpy as np
 import pandas as pd
 from scipy.stats import linregress, pearsonr
 from shapely.geometry import Polygon
+from pathlib import Path
 
-from config import CSV_ROOT, TMP_DIR
+from config import CSV_ROOT, TMP_DIR, GYMNOSPERM_GENERA
 
 TMP = TMP_DIR
 
@@ -135,7 +136,6 @@ def single_slope(vpd, sap):
         if x_morning.dropna().nunique() <= 1 or y_morning.dropna().nunique() <= 1:
             return np.nan, np.nan, np.nan, np.nan, np.nan
 
-        #       return get_robust_regression(x_morning, y_morning)
         return get_regression(x_morning, y_morning)
 
     return np.nan, np.nan, np.nan, np.nan, np.nan
@@ -176,7 +176,6 @@ def single_area(vpd, sap):
 
 
 def get_area(subdaily):
-    #   subdaily = scale_by_95th(subdaily) # ensure metrics are comparable
     vpd = subdaily["VPD"]
     sap = subdaily["SF"]
 
@@ -253,30 +252,44 @@ def corr_and_p(x, y):
     r, p = pearsonr(x, y)
     return (r, p)
 
+# pairwise correlation on overlapping DOYs only
+def pairwise_corr(x, y):
+    if x is None or y is None:
+        return None
+    xy = pd.concat([x, y], axis=1).dropna()
+    if len(xy) < 3:  # avoid meaningless correlations
+        return None
+    return corr_and_p(xy.iloc[:, 0], xy.iloc[:, 1])
 
 def get_seasonal_cycle_correlations(site, slopeframe, areaframe):
     ENV_FILE = CSV_ROOT / f"plant/{site}_env_data.csv"
 
-    env_file = ENV_FILE
-    # Load and preprocess
-    df = pd.read_csv(env_file)
-    TS = "TIMESTAMP"
-    df[TS] = pd.to_datetime(df[TS])
-    df.set_index(TS, inplace=True)
+    df = pd.read_csv(ENV_FILE)
+    df["TIMESTAMP"] = pd.to_datetime(df["TIMESTAMP"])
+    df.set_index("TIMESTAMP", inplace=True)
 
-    # Columns of interest
     tair_col = "ta"
     tsm_col = "swc_shallow"
     ppfd_col = "ppfd_in"
 
-    # Resample subdaily env data to daily means
-    tair_daily = df[tair_col].resample("D").mean()
-    tsm_daily = df[tsm_col].resample("D").mean()
-    ppfd_daily = df[ppfd_col].resample("D").mean() if ppfd_col in df.columns else None
+    # Daily means
+    tair_daily = df[tair_col].resample("D").mean() if tair_col in df.columns else None
+    tsm_daily = df[tsm_col].resample("D").mean() if tsm_col in df.columns else None
+    ppfd_daily = (
+        df[ppfd_col].resample("D").mean() if ppfd_col in df.columns else None
+    )
 
-    # Create seasonal cycles (mean per day of year)
-    tair_cycle = tair_daily.groupby(tair_daily.index.dayofyear).mean()
-    tsm_cycle = tsm_daily.groupby(tsm_daily.index.dayofyear).mean()
+    # Seasonal cycles
+    tair_cycle = (
+        tair_daily.groupby(tair_daily.index.dayofyear).mean()
+        if tair_daily is not None
+        else None
+    )
+    tsm_cycle = (
+        tsm_daily.groupby(tsm_daily.index.dayofyear).mean()
+        if tsm_daily is not None
+        else None
+    )
     ppfd_cycle = (
         ppfd_daily.groupby(ppfd_daily.index.dayofyear).mean()
         if ppfd_daily is not None
@@ -286,31 +299,16 @@ def get_seasonal_cycle_correlations(site, slopeframe, areaframe):
     slope_cycle = slopeframe["hourly"].groupby(slopeframe.index.dayofyear).median()
     area_cycle = areaframe["hourly"].groupby(areaframe.index.dayofyear).median()
 
-    # Align all series on day of year
-    data = pd.DataFrame(
-        {
-            "TSM": tsm_cycle,
-            "TAir": tair_cycle,
-            "PPFD": ppfd_cycle if ppfd_cycle is not None else pd.NA,
-            "SLOPE": slope_cycle,
-            "AREA": area_cycle,
-        }
-    )
-
-    # Drop rows with any missing values
-    data = data.dropna()
-
     correlations = {
-        "SLOPE-TSM": corr_and_p(data["SLOPE"], data["TSM"]),
-        "SLOPE-TAir": corr_and_p(data["SLOPE"], data["TAir"]),
-        "SLOPE-PPFD": corr_and_p(data["SLOPE"], data.get("PPFD")),
-        "AREA-TSM": corr_and_p(data["AREA"], data["TSM"]),
-        "AREA-TAir": corr_and_p(data["AREA"], data["TAir"]),
-        "AREA-PPFD": corr_and_p(data["AREA"], data.get("PPFD")),
+        "SLOPE-TSM": pairwise_corr(slope_cycle, tsm_cycle),
+        "SLOPE-TAir": pairwise_corr(slope_cycle, tair_cycle),
+        "SLOPE-PPFD": pairwise_corr(slope_cycle, ppfd_cycle),
+        "AREA-TSM": pairwise_corr(area_cycle, tsm_cycle),
+        "AREA-TAir": pairwise_corr(area_cycle, tair_cycle),
+        "AREA-PPFD": pairwise_corr(area_cycle, ppfd_cycle),
     }
 
     return correlations
-
 
 def get_correlations_to_hourly(slopeframe, areaframe):
     slope_coeffs = {}
@@ -370,9 +368,9 @@ def get_combined_variables(slopeframe, areaframe, dl_frame, daily, site):
             precip,
         ],
         axis=1,
-    ).dropna()
+    )
 
-    return df_cluster
+    return df_cluster, df_cluster.dropna()
 
 
 def scale_by_95th(series):
@@ -406,7 +404,6 @@ def get_standardized_metrics(growing_cluster):
 
 def get_classification(growing_all_sites):
     results = []
-
     for site in growing_all_sites["Site"].unique():
         # load site metadata
         md_path = CSV_ROOT / f"plant/{site}_site_md.csv"
@@ -440,6 +437,49 @@ def get_classification(growing_all_sites):
         "area": df_classification.groupby("Site")["AREA"].mean(),
         "data": df_classification,
     }
+
+def _fix_site(df: pd.DataFrame, site_name: str) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    df = df.copy()
+
+    site_vals = df["Site"].dropna().unique()
+
+    if len(site_vals) == 1:
+        df["Site"] = site_vals[0]
+    else:
+        # fallback: use canonical site id
+        df["Site"] = site_name
+
+    return df
+
+
+def fix_site_and_update_counters(
+    df_combined: pd.DataFrame,
+    df_reduced: pd.DataFrame,
+    site: str,
+    counters: dict,
+):
+    """
+    Fix Site column consistency and update global counters.
+    Called once per site.
+    """
+    # ---- fix Site columns
+    df_combined_fixed = _fix_site(df_combined, site)
+    df_reduced_fixed = _fix_site(df_reduced, site)
+
+    # ---- update counters (combined)
+    for s in df_combined_fixed["Site"].dropna().unique():
+        counters["combined_sites"].add(s)
+        counters["combined_sites_unique"].add(s[:7])
+
+    # ---- update counters (reduced)
+    for s in df_reduced_fixed["Site"].dropna().unique():
+        counters["reduced_sites"].add(s)
+        counters["reduced_sites_unique"].add(s[:7])
+
+    return df_combined_fixed, df_reduced_fixed
 
 
 def get_concept(subdaily):
@@ -593,12 +633,35 @@ def get_anomalies_TAIR_TSM(growing_season_standardized):
 
     return df_subset
 
+def get_plant_group(species_list):
+    """
+    Determine plant group (angiosperm, gymnosperm, mixed) based on species list.
+    """
+    if not species_list or (isinstance(species_list, float) and np.isnan(species_list)):
+        return np.nan
+    
+    has_gymnosperm = False
+    has_angiosperm = False
+
+    for species in species_list:
+        genus = species.split()[0]
+        if genus in GYMNOSPERM_GENERA:
+            has_gymnosperm = True
+        else:
+            has_angiosperm = True
+
+    if has_gymnosperm and has_angiosperm:
+        return 'mixed'
+    elif has_gymnosperm:
+        return 'gymnosperm'
+    else:
+        return 'angiosperm'
 
 def get_metadata_per_site(CSV_ROOT, sites):
     """
-    Extract site metadata (DBH, LAI, soil texture) for selected sites.
+    Extract site metadata (DBH, LAI, soil texture, species, biome,
+    plant_group, treatment, paper, MAT) for selected sites.
     """
-    from pathlib import Path
 
     CSV_ROOT = Path(CSV_ROOT)
     plant_dir = CSV_ROOT / "plant"
@@ -608,10 +671,9 @@ def get_metadata_per_site(CSV_ROOT, sites):
 
     metadata_list = []
 
-    # Only process sites in the provided list
     for site_id in sites:
         try:
-            # Read stand metadata for LAI and soil texture
+            # --- Stand metadata ---
             stand_file = plant_dir / f"{site_id}_stand_md.csv"
 
             if not stand_file.exists():
@@ -622,6 +684,12 @@ def get_metadata_per_site(CSV_ROOT, sites):
                         "DBH_mean": np.nan,
                         "LAI": np.nan,
                         "soil_texture": np.nan,
+                        "species": np.nan,
+                        "biome": np.nan,
+                        "plant_group": np.nan,
+                        "treatment": np.nan,
+                        "paper": np.nan,
+                        "precip": np.nan,
                     }
                 )
                 continue
@@ -629,42 +697,70 @@ def get_metadata_per_site(CSV_ROOT, sites):
             stand_md = pd.read_csv(stand_file)
 
             if len(stand_md) > 0:
-                lai = (
-                    stand_md["st_lai"].iloc[0]
-                    if "st_lai" in stand_md.columns
-                    else np.nan
-                )
+                lai = stand_md["st_lai"].iloc[0] if "st_lai" in stand_md.columns else np.nan
                 soil_texture = (
                     stand_md["st_USDA_soil_texture"].iloc[0]
                     if "st_USDA_soil_texture" in stand_md.columns
                     else np.nan
                 )
+                treatment = (
+                    stand_md["st_growth_condition"].iloc[0]
+                    if "st_growth_condition" in stand_md.columns
+                    else np.nan
+                )
             else:
-                lai = np.nan
-                soil_texture = np.nan
+                lai = soil_texture = treatment = np.nan
 
-            # Read plant metadata for DBH
+            # --- Plant metadata ---
             plant_file = plant_dir / f"{site_id}_plant_md.csv"
+            species = []
 
             if plant_file.exists():
                 plant_md = pd.read_csv(plant_file)
 
-                # Calculate mean DBH across all plants at the site
                 if "pl_dbh" in plant_md.columns and len(plant_md) > 0:
                     dbh_mean = plant_md["pl_dbh"].mean()
                 else:
                     dbh_mean = np.nan
+
+                if "pl_species" in plant_md.columns:
+                    species = plant_md["pl_species"].unique().tolist()
             else:
                 dbh_mean = np.nan
                 print(f"Warning: Plant metadata file not found for {site_id}")
 
-            # Store metadata for this site
+            # --- Site metadata ---
+            site_file = plant_dir / f"{site_id}_site_md.csv"
+            biome = np.nan
+            paper = np.nan
+
+            if site_file.exists():
+                site_md = pd.read_csv(site_file)
+                if len(site_md) > 0:
+                    if "si_biome" in site_md.columns:
+                        biome = site_md["si_biome"].iloc[0]
+                    if "si_paper" in site_md.columns:
+                        paper = site_md["si_paper"].iloc[0]
+                    if "si_map" in site_md.columns:
+                        precip = site_md["si_map"].iloc[0]
+            else:
+                print(f"Warning: Site metadata file not found for {site_id}")
+
+            # --- Derived metadata ---
+            plant_group = get_plant_group(species)
+
             metadata_list.append(
                 {
                     "Site": site_id,
                     "DBH_mean": dbh_mean,
                     "LAI": lai,
                     "soil_texture": soil_texture,
+                    "species": species,
+                    "biome": biome,
+                    "plant_group": plant_group,
+                    "treatment": treatment,
+                    "paper": paper,
+                    "precip": precip,
                 }
             )
 
@@ -676,11 +772,13 @@ def get_metadata_per_site(CSV_ROOT, sites):
                     "DBH_mean": np.nan,
                     "LAI": np.nan,
                     "soil_texture": np.nan,
+                    "species": np.nan,
+                    "biome": np.nan,
+                    "plant_group": np.nan,
+                    "treatment": np.nan,
+                    "paper": np.nan,
+                    "precip": np.nan,
                 }
             )
 
-    # Create DataFrame with sites as index
-    metadata_df = pd.DataFrame(metadata_list)
-    metadata_df = metadata_df.set_index("Site")
-
-    return metadata_df
+    return pd.DataFrame(metadata_list)

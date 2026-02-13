@@ -21,15 +21,13 @@ from util import (
     get_seasonal_cycle_correlations,
     get_site_data,
     get_standardized_metrics,
+    fix_site_and_update_counters,
 )
 from visualization import (
     plot_classification,
     plot_cycle,
-    plot_distribution_TSM_TAir,
-    plot_distributions_focus,
     plot_distributions_SLOPE_AREA,
-    plot_heatmap_summary,
-    # plot_map_summary,
+    plot_heatmap_summary_param,
     plot_patterns,
     plot_srs,
 )
@@ -44,6 +42,7 @@ class SiteOutputs:
     areaframe: pd.DataFrame
     dl_frame: pd.DataFrame
     growing_season: pd.DataFrame
+    growing_season_complete: pd.DataFrame
     seasonal_corrs: Dict[str, Any]
     corr_slope_to_hourly: pd.Series
     corr_area_to_hourly: pd.Series
@@ -62,9 +61,18 @@ def process_all_sites(
     all_seasonal_correlations: Dict[str, Any] = {}
     selected_sites: List[str] = sites
     focus_growing_season: Dict[str, pd.DataFrame] = {}
+    combined_all: List[pd.DataFrame] = []
 
     # Get site metadata
     site_metadata = get_metadata_per_site(CSV_ROOT, sites)
+
+    counters = {
+        "combined_sites": set(),
+        "reduced_sites": set(),
+        "combined_sites_unique": set(),
+        "reduced_sites_unique": set(),
+        }
+
 
     for site in sites:
         # load site data
@@ -77,7 +85,7 @@ def process_all_sites(
         areaframe.index = pd.to_datetime(areaframe.index)
 
         # -------------- SEASONAL RESPONSE METRICS TO ENV DRIVERS
-        # seasonal correlations for maps/heatmaps
+        # seasonal correlations for maps/
         seasonal_corrs = get_seasonal_cycle_correlations(site, slopeframe, areaframe)
         all_seasonal_correlations[site] = seasonal_corrs
 
@@ -98,23 +106,31 @@ def process_all_sites(
         )
 
         # ---------------- PREPARATION FOR ANALYSIS OF HYSTERESIS DURING EXTREMES CONDITIONS
-        df_combined = get_combined_variables(
+        df_combined, df_reduced = get_combined_variables(
             slopeframe=slopeframe,
             areaframe=areaframe,
             dl_frame=dl_frame,
             daily=daily,
             site=site,
+        ) # sites get reduced if any of TSM, PPFD is missing, from 45 (including plots) to 25 (including plots)
+        combined_all.append(df_combined)
+        df_combined, df_reduced = fix_site_and_update_counters(
+            df_combined=df_combined,
+            df_reduced=df_reduced,
+            site=site,
+            counters=counters,
         )
 
         # growing-season filter
-        growing_season = df_combined.loc[
-            (df_combined.daylength >= GROWING_SEASON_DAYLENGTH)
-            & (df_combined.TAir >= GROWING_SEASON_TEMP)
+        growing_season = df_reduced.loc[
+            (df_reduced.daylength >= GROWING_SEASON_DAYLENGTH)
+            & (df_reduced.TAir >= GROWING_SEASON_TEMP)
         ]
 
         growing_season_standardized = get_standardized_metrics(growing_season)
         growing_season_list.append(growing_season_standardized)
         # print(growing_season_standardized)
+
 
         # Get anomalies
         growing_season_stand_anom = get_anomalies_TAIR_TSM(growing_season_standardized)
@@ -135,15 +151,22 @@ def process_all_sites(
             areaframe=areaframe,
             dl_frame=dl_frame,
             growing_season=growing_season_standardized,
+            growing_season_complete=df_combined,
             seasonal_corrs=seasonal_corrs,
             corr_slope_to_hourly=corr_slope_to_hourly,
             corr_area_to_hourly=corr_area_to_hourly,
         )
 
+    print("ALL COMBINED sites:", len(counters["combined_sites"]))
+    print("ALL COMBINED unique sites:", len(counters["combined_sites_unique"]))
+    print("ALL REDUCED sites:", len(counters["reduced_sites"]))
+    print("ALL REDUCED unique sites:", len(counters["reduced_sites_unique"]))
+
     # aggregated return
     return {
         "site_outputs": site_outputs,
         "growing_season_list": growing_season_list,
+        "combined_all": combined_all,
         "global_subdaily_list": global_subdaily_list,
         "subdaily_focus": subdaily_focus,  # probably not needed?
         "slope_coefficients_to_hourly": slope_coefficients_to_hourly,
@@ -160,12 +183,49 @@ def process_all_sites(
 # 1) classification_climate
 # -------------------------
 def calc_climate_classification(
-    growing_season_list: List[pd.DataFrame],
+    combined_all: List[pd.DataFrame],
 ) -> Tuple[pd.DataFrame, Any]:
-    """Return combined growing season frames and classification frame of means for diagram"""
-    growing_all_sites = pd.concat(growing_season_list)
-    df_classification = get_classification(growing_all_sites)
-    return growing_all_sites, df_classification
+    cleaned_frames = []
+
+    for i, df in enumerate(combined_all):
+
+        # Skip truly empty dataframes (no rows)
+        if df.empty:
+            print(f"[WARN] Empty dataframe at index {i}")
+            continue
+
+        # Extract non-NaN site values
+        site_vals = df["Site"].dropna().unique()
+
+        if len(site_vals) == 1:
+            site_name = site_vals[0]
+
+            # Broadcast scalar site name to full column
+            df = df.copy()
+            df["Site"] = site_name
+
+            cleaned_frames.append(df)
+
+        elif len(site_vals) == 0:
+            print(f"[WARN] No Site value found at index {i}")
+            continue
+
+        else:
+            print(f"[WARN] Multiple Site values found at index {i}: {site_vals}")
+            # choose first non-NaN value as fallback
+            site_name = site_vals[0]
+            df = df.copy()
+            df["Site"] = site_name
+            cleaned_frames.append(df)
+
+    # Concatenate after Site column has been fixed
+    all_sites = pd.concat(cleaned_frames, axis=0)
+    
+    # Classification uses all rows; reduction happens inside get_classification
+    df_classification = get_classification(all_sites)
+    print(len(df_classification["data"]), "sites classified")
+    return all_sites, df_classification
+
 
 
 def plot_climate_classification(
@@ -228,7 +288,7 @@ def calc_cycles_all_sites(
 
 
 def plot_cycles_all_sites(
-    calc_obj: Dict[str, Any], out_pdf: str = str(FIG_DIR / "cycle_all_sites.pdf")
+    calc_obj: Dict[str, Any], out_pdf: str = str(FIG_DIR / "Figure3_cycles.pdf")
 ):
     ppfd_min = calc_obj["ppfd_min"]
     ppfd_max = calc_obj["ppfd_max"]
@@ -239,6 +299,7 @@ def plot_cycles_all_sites(
     outer_spec = gridspec.GridSpec(ncols=1, nrows=len(sites_info), figure=fig)
     im = None
 
+    panel_labels = [("a", "b"), ("c", "d"), ("e", "f")]  # (a,b), (c,d), (e,f), individual tupleas for each of the 3 sites
     for i, si in enumerate(sites_info):
         site = si["site"]
         if site not in per_site:
@@ -263,6 +324,7 @@ def plot_cycles_all_sites(
             ps["env_file"],
             ppfd_min,
             ppfd_max,
+            panel_labels[i],
             ps["years"],
             fig=fig,
             spec=inner_spec,
@@ -283,68 +345,14 @@ def plot_cycles_all_sites(
         pp.savefig(fig)
         plt.close(fig)
 
-
-# -------------------------
-# 3) summary_heatmap of seasonal correlations and significance
-# -------------------------
-# def calc_heatmap(all_correlations: Dict[str, Any]) -> Dict[str, Any]:
-#     return {"all_correlations": all_correlations}
-
-
-def plot_heatmap(
+def plot_heatmap_parameters(
     all_correlations,
-    out_pdf: str = str(FIG_DIR / "summary_heatmap_org_avg.pdf"),
+    site_metadata_file: str,
+    out_pdf: str = str(FIG_DIR / "Figure4_heatmap.pdf"),
 ):
     all_correlations = all_correlations
     with PdfPages(out_pdf) as pp:
-        fig, ax = plot_heatmap_summary(all_correlations)
-        pp.savefig(fig, bbox_inches="tight")
-        plt.close(fig)
-
-
-# -------------------------
-# 4) coefficients_maps
-# -------------------------
-def calc_maps_of_coefficients(
-    all_correlations: Dict[str, Any], input_data: pd.DataFrame
-) -> Dict[str, Any]:
-    # Build coordinates from input_data and return with correlations
-
-    selected_sites_md = input_data.loc[input_data["site"].isin(all_correlations.keys())]
-    coordinates = dict(
-        zip(
-            selected_sites_md["site"],
-            zip(selected_sites_md["longitude"], selected_sites_md["latitude"]),
-        )
-    )
-    variables_to_plot = [
-        "SLOPE-TSM",
-        "AREA-TSM",
-        "SLOPE-PPFD",
-        "AREA-PPFD",
-        "SLOPE-TAir",
-        "AREA-TAir",
-    ]
-    return {
-        "all_correlations": all_correlations,
-        "coordinates": coordinates,
-        "variables": variables_to_plot,
-    }
-
-
-def plot_maps_of_coefficients(
-    calc_obj: Dict[str, Any], out_pdf: str = str(FIG_DIR / "coefficients_maps.pdf")
-):
-    all_correlations = calc_obj["all_correlations"]
-    coordinates = calc_obj["coordinates"]
-    variables = calc_obj["variables"]
-    with PdfPages(out_pdf) as pp:
-        fig, axs = plot_map_summary(
-            all_correlations,
-            coordinates=coordinates,
-            variables=variables,
-            title="Seasonal Cycle Correlations Across Sites",
-        )
+        fig, ax = plot_heatmap_summary_param(all_correlations, site_metadata_file)
         pp.savefig(fig, bbox_inches="tight")
         plt.close(fig)
 
@@ -382,7 +390,7 @@ def calc_hysteresis_patterns(
 
 
 def plot_hysteresis_patterns(
-    calc_obj: Dict[str, Any], out_pdf: str = str(FIG_DIR / "patterns_supplements.pdf")
+    calc_obj: Dict[str, Any], out_pdf: str = str(FIG_DIR / "Figure5_fingerprints.pdf")
 ):
     if calc_obj["extreme_anomalies"] is None:
         # nothing to plot
@@ -390,78 +398,6 @@ def plot_hysteresis_patterns(
     fig = plot_patterns(
         calc_obj["extreme_anomalies"], calc_obj["mean_cycles"], code="supp"
     )
-    with PdfPages(out_pdf) as pp:
-        pp.savefig(fig, bbox_inches="tight")
-        plt.close(fig)
-
-
-def plot_distributions_metrics(
-    extreme_anomalies, out_pdf=str(FIG_DIR / "distributions_focus.pdf")
-):
-    fig = plot_distributions_focus(extreme_anomalies)
-    # Save to PDF
-    with PdfPages(out_pdf) as pp:
-        pp.savefig(fig, bbox_inches="tight")
-        plt.close(fig)
-
-
-def calc_distributions_anomalies(growing_season_anom_list):
-    """
-    Calculate anomalies of TSM and TAir at 20% percentiles of combinations of SLOPE and AREA.
-    """
-    # Combine list of dataframes into one
-    combined_df = pd.concat(growing_season_anom_list, ignore_index=False)
-
-    # Calculate 20th and 80th percentiles for SLOPE and AREA
-    slope_20 = combined_df["SLOPE"].quantile(0.20)
-    slope_80 = combined_df["SLOPE"].quantile(0.80)
-    area_20 = combined_df["AREA"].quantile(0.20)
-    area_80 = combined_df["AREA"].quantile(0.80)
-
-    # Define the 4 combinations based on percentiles
-    # high SLOPE & low AREA
-    high_slope_low_area = combined_df[
-        (combined_df["SLOPE"] >= slope_80) & (combined_df["AREA"] <= area_20)
-    ][["TAir_anomaly", "TSM_anomaly"]].copy()
-    high_slope_low_area["combination"] = "high SLOPE & low AREA"
-
-    # low SLOPE & high AREA
-    low_slope_high_area = combined_df[
-        (combined_df["SLOPE"] <= slope_20) & (combined_df["AREA"] >= area_80)
-    ][["TAir_anomaly", "TSM_anomaly"]].copy()
-    low_slope_high_area["combination"] = "low SLOPE & high AREA"
-
-    # high SLOPE & high AREA
-    high_slope_high_area = combined_df[
-        (combined_df["SLOPE"] >= slope_80) & (combined_df["AREA"] >= area_80)
-    ][["TAir_anomaly", "TSM_anomaly"]].copy()
-    high_slope_high_area["combination"] = "high SLOPE & high AREA"
-
-    # low SLOPE & low AREA
-    low_slope_low_area = combined_df[
-        (combined_df["SLOPE"] <= slope_20) & (combined_df["AREA"] <= area_20)
-    ][["TAir_anomaly", "TSM_anomaly"]].copy()
-    low_slope_low_area["combination"] = "low SLOPE & low AREA"
-
-    # Combine all combinations into one dataframe
-    anomalies_TAir_TSM = pd.concat(
-        [
-            high_slope_low_area,
-            low_slope_high_area,
-            high_slope_high_area,
-            low_slope_low_area,
-        ],
-        ignore_index=False,
-    )
-
-    return anomalies_TAir_TSM
-
-
-def plot_distributions_anomalies(
-    anomalies_TAir_TSM, out_pdf=str(FIG_DIR / "distributions_anomalies.pdf")
-):
-    fig = plot_distribution_TSM_TAir(anomalies_TAir_TSM)
-    # Save to PDF
     with PdfPages(out_pdf) as pp:
         pp.savefig(fig, bbox_inches="tight")
         plt.close(fig)
@@ -520,7 +456,7 @@ def calc_distributions_slope_area(growing_season_anom_list):
 
 def plot_distributions_slope_area(
     slope_area_distributions,
-    out_pdf=str(FIG_DIR / "distributions_anomalies_SLOPE_AREA.pdf"),
+    out_pdf=str(FIG_DIR / "Figure6_distributions.pdf"),
 ):
     fig = plot_distributions_SLOPE_AREA(slope_area_distributions)
     # Save to PDF
@@ -542,7 +478,7 @@ def calc_samplerates(
 
 
 def plot_samplerates(
-    calc_obj: Dict[str, pd.DataFrame], out_pdf: str = str(FIG_DIR / "samplerates.pdf")
+    calc_obj: Dict[str, pd.DataFrame], out_pdf: str = str(FIG_DIR / "Figure7_samplerates.pdf")
 ):
     with PdfPages(out_pdf) as pp:
         plot_srs(

@@ -1,7 +1,4 @@
 import locale
-
-# import cartopy.crs as ccrs
-# import cartopy.feature as cfeature
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -15,7 +12,7 @@ from matplotlib.lines import Line2D
 from scipy import stats
 from scipy.spatial import ConvexHull
 
-from config import CSV_ROOT, FOCUS_SITES, GROWING_SEASON_DAYLENGTH
+from config import CSV_ROOT, FOCUS_SITES, GROWING_SEASON_DAYLENGTH, TMP_DIR
 from util import get_resampled, get_subdaily, single_slope
 
 
@@ -24,7 +21,7 @@ def plot_classification(df_classification):
     df_plot = df_classification[1]["data"]
 
     # Set global font size
-    plt.rcParams.update({"font.size": 12})
+    plt.rcParams.update({"font.size": 14})
 
     # Create figure and axes
     fig, ax = plt.subplots(figsize=(10, 7))
@@ -55,7 +52,7 @@ def plot_classification(df_classification):
         zorder=2,
     )
     cbar = fig.colorbar(sc, ax=ax, label=r"sSLOPE")
-    cbar.ax.tick_params(labelsize=12)
+    cbar.ax.tick_params(labelsize=14)
 
     # Highlight selected sites
     highlight_sites = FOCUS_SITES
@@ -85,7 +82,7 @@ def plot_classification(df_classification):
                 (row["TAir"], row["PRECIP"]),
                 xytext=(dx, dy),
                 textcoords="offset points",
-                fontsize=12,
+                fontsize=14,
                 color="red",
                 weight="bold",
                 arrowprops=dict(arrowstyle="->", color="red", lw=1.2),
@@ -96,10 +93,10 @@ def plot_classification(df_classification):
             print("Fail")
 
     # Axis labels and title
-    ax.set_ylabel(r"PRECIP [mm]", fontsize=14)
-    ax.set_xlabel(r"TAir [°C]", fontsize=14)
+    ax.set_ylabel(r"PRECIP [mm]", fontsize=16)
+    ax.set_xlabel(r"TAir [°C]", fontsize=16)
     ax.grid(True)
-
+    
     # Marker size legend using the same scaling as scatter points
     area_values = df_plot["AREA"].quantile([0.25, 0.5, 0.75]).round(2)
     handles = [
@@ -125,17 +122,16 @@ def plot_classification(df_classification):
         title="nAREA",
         scatterpoints=1,
         frameon=True,
-        fontsize=12,
-        title_fontsize=13,
+        fontsize=14,
+        title_fontsize=15,
         loc="upper left",
     )
 
     fig.tight_layout()
     return fig
 
-
 # seasonal cycles
-def plot_environment(fig, spec, datafile_env, years_to_keep, site, ppfd_min, ppfd_max):
+def plot_environment(fig, spec, datafile_env, years_to_keep, site, ppfd_min, ppfd_max, panel_label):
     df_env = pd.read_csv(datafile_env)
     df_env["solar_TIMESTAMP"] = pd.to_datetime(df_env["solar_TIMESTAMP"])
     df_env.index = df_env["solar_TIMESTAMP"]
@@ -161,7 +157,6 @@ def plot_environment(fig, spec, datafile_env, years_to_keep, site, ppfd_min, ppf
     inner_spec = spec.subgridspec(nrows=2, ncols=1, height_ratios=[1, 4], hspace=0.05)
 
     ax_ppfd = fig.add_subplot(inner_spec[0])
-    #    ax_rad.set_title(f"Mean Seasonal Cycle of {rad_col}", fontsize=20)
     im = ax_ppfd.imshow(
         np.tile(ppfd_cycle.values, (10, 1)),
         aspect="auto",
@@ -173,17 +168,20 @@ def plot_environment(fig, spec, datafile_env, years_to_keep, site, ppfd_min, ppf
     )
     ax_ppfd.set_yticks([])
     ax_ppfd.set_xticks([])
+    
+    # Add subplot label with panel_label
+    ax_ppfd.text(-0.02, 1.65, f'{panel_label})', transform=ax_ppfd.transAxes, fontsize=22, fontweight='bold', va='top', ha='right')
 
     ax_temp = fig.add_subplot(inner_spec[1])
     ax_tsm = ax_temp.twinx()
 
     ax_temp.plot(tair_cycle.index, tair_cycle.values, color="tab:red")
-    ax_temp.set_ylabel("TAir (°C)", color="tab:red", fontsize=20)
-    ax_temp.tick_params(axis="y", labelcolor="tab:red", labelsize=20)
+    ax_temp.set_ylabel("TAir (°C)", color="tab:red", fontsize=22)
+    ax_temp.tick_params(axis="y", labelcolor="tab:red", labelsize=22)
 
     ax_tsm.plot(tsm_cycle.index, tsm_cycle.values, color="blue")
-    ax_tsm.set_ylabel(tsm_label, color="blue", fontsize=20)
-    ax_tsm.tick_params(axis="y", labelcolor="blue", labelsize=20)
+    ax_tsm.set_ylabel(tsm_label, color="blue", fontsize=22)
+    ax_tsm.tick_params(axis="y", labelcolor="blue", labelsize=22)
 
     ax_temp.set_xlim(0, 364)
     ax_temp.set_xticks([])
@@ -191,7 +189,7 @@ def plot_environment(fig, spec, datafile_env, years_to_keep, site, ppfd_min, ppf
     return tsm_cycle.reset_index(drop=True), ppfd_cycle.reset_index(drop=True), im
 
 
-def plot_concept(fig, spec, concept):
+def plot_concept(fig, spec, concept, panel_label):
     ax_concept = fig.add_subplot(spec)
 
     # Scatter plot of VPD vs SF
@@ -228,7 +226,7 @@ def plot_concept(fig, spec, concept):
     ymin, ymax = sap.min(), sap.max()
 
     locale.setlocale(locale.LC_TIME, "en_US.UTF-8")  # ensures AM/PM shows
-    ax_concept.tick_params(axis="x", labelsize=20)
+    ax_concept.tick_params(axis="x", labelsize=22)
     ax_concept.set_xticks(
         [xmin, xmax],
         labels=[
@@ -237,7 +235,7 @@ def plot_concept(fig, spec, concept):
         ],
     )
 
-    ax_concept.tick_params(axis="y", labelsize=20)
+    ax_concept.tick_params(axis="y", labelsize=22)
     ax_concept.set_yticks(
         [ymin, ymax],
         labels=[
@@ -254,8 +252,8 @@ def plot_concept(fig, spec, concept):
         ax_concept.axhline(value, color="gray", ls="--", lw=1)
 
     # Set axis labels
-    ax_concept.set_ylabel(r"Sapflux in ($\frac{m^{3}}{s}$)", fontsize=20)
-    ax_concept.set_xlabel(r"Vapour Pressure Deficit in ($kPa$)", fontsize=20)
+    ax_concept.set_ylabel(r"Sapflux in ($\frac{m^{3}}{s}$)", fontsize=22)
+    ax_concept.set_xlabel(r"Vapour Pressure Deficit in ($kPa$)", fontsize=22)
 
     # Close the cycle by connecting the last point to the first point
     first_point = (concept["VPD"].iloc[0], concept["SF"].iloc[0])
@@ -268,6 +266,20 @@ def plot_concept(fig, spec, concept):
         lw=4,
         linestyle="-",
     )
+    
+    # Add panel label
+    ax_concept.text(
+        -0.05,
+        1.05,
+        f'{panel_label})',
+        transform=ax_concept.transAxes,
+        fontsize=22,
+        fontweight="bold",
+        verticalalignment="top",
+        horizontalalignment="right",
+    )
+    
+    return ax_concept
 
 
 def plot_metrics(ax, metric_cycles, daylength, site):
@@ -325,22 +337,21 @@ def plot_metrics(ax, metric_cycles, daylength, site):
 
     ax_area.set_xticks(month_idx, month_starts.month)
     ax_slope.set_xticks(month_idx, month_starts.month)
-    ax_area.set_xlabel("month", fontsize=20)
+    ax_area.set_xlabel("month", fontsize=22)
 
     # Vertical markers
     ax_area.axvline(first_12, color="gray", linestyle="--")
     ax_area.axvline(last_12, color="gray", linestyle="--")
     ax_area.axhline(0.0, color="gray")
 
-    ax_area.set_ylabel(r"AREA ($\frac{m^{3}}{s}*kPa$)", fontsize=20, color="k")
-    ax_slope.set_ylabel(r"SLOPE ($\frac{m^{3}}{s*kPa}$)", fontsize=20, color="#1f77b4")
+    ax_area.set_ylabel(r"AREA ($\frac{m^{3}}{s}*kPa$)", fontsize=22, color="k")
+    ax_slope.set_ylabel(r"SLOPE ($\frac{m^{3}}{s*kPa}$)", fontsize=22, color="#1f77b4")
 
     ax_area.set_ylim(area_ylim)
     ax_slope.set_ylim(slope_ylim)
 
-    ax_area.tick_params(axis="both", labelsize=20)
-    ax_slope.tick_params(axis="y", labelsize=20, labelcolor="#1f77b4")
-    # ax_slope.set_xlabel("month", fontsize=20)
+    ax_area.tick_params(axis="both", labelsize=22)
+    ax_slope.tick_params(axis="y", labelsize=22, labelcolor="#1f77b4")
 
     # Remove white space on left and right
     x_min = 0
@@ -359,6 +370,7 @@ def plot_cycle(
     datafile_env,
     ppfd_min,
     ppfd_max,
+    panel_labels,  # NEW: tuple of (concept_label, env_label)
     years_to_keep=None,
     fig=None,
     spec=None,
@@ -370,6 +382,8 @@ def plot_cycle(
     areaframe = areaframe.loc[areaframe.index.year.isin(years_to_keep)]
     slopeframe = slopeframe.loc[slopeframe.index.year.isin(years_to_keep)]
 
+    concept_label, env_label = panel_labels
+
     tsm, ppfd, im = plot_environment(
         fig,
         spec[0, 1],
@@ -378,33 +392,30 @@ def plot_cycle(
         site,
         ppfd_min,
         ppfd_max,
+        env_label,  # Pass env label (b, d, or f)
     )
 
     areaframe.index = pd.to_datetime(areaframe.index)
     slopeframe.index = pd.to_datetime(slopeframe.index)
 
-    # slope_daily = slopeframe["hourly"].groupby(slopeframe.index.dayofyear).median()
-    # area_daily = areaframe["hourly"].groupby(areaframe.index.dayofyear).median()
-
     # Axes for concept and metrics panels
-    ax_concept = fig.add_subplot(spec[:, 0])
-    plot_concept(fig, ax_concept, concept)
+    ax_concept = plot_concept(fig, spec[:, 0], concept, concept_label)  # Pass concept label (a, c, or e)
+    
     ax_concept.text(
-        0.2,
-        1.05,
+        0.5,
+        -0.05,
         site,
         transform=ax_concept.transAxes,
-        fontsize=20,
+        fontsize=22,
         fontweight="bold",
-        verticalalignment="top",
-        horizontalalignment="right",
+        verticalalignment="center",
+        horizontalalignment="center",
     )
 
     ax_metrics = fig.add_subplot(spec[1, 1])
     plot_metrics(ax_metrics, metric_cycles, daylength, site)
 
     return im
-
 
 def plot_heatmap_summary(all_correlations):
     selected_sites = FOCUS_SITES
@@ -464,15 +475,317 @@ def plot_heatmap_summary(all_correlations):
 
     ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
     ax.set_xticklabels(ax.get_xticklabels(), rotation=0)
+    
+    # Add subplot label
+    ax.text(-0.05, 1.05, 'd)', transform=ax.transAxes, fontsize=18, fontweight='bold', va='top', ha='right')
+    
     plt.tight_layout()
 
     # Add significance legend
     legend_text = "***  p < 0.001\n**    p < 0.01\n*      p < 0.05\nns    p ≥ 0.05"
 
-    plt.gcf().text(0.04, 0.15, legend_text, fontsize=10, ha="left", va="top")
+    plt.gcf().text(0.04, 0.15, legend_text, fontsize=12, ha="left", va="top")
 
     return fig, ax
 
+# TODO: leave it out, replaced by plot_heatmap_parameters
+def plot_heatmap_summary_tax(all_correlations, metadata_path):
+        # Load site metadata
+    site_metadata_df = pd.read_csv(metadata_path)
+    site_metadata_df['site_prefix'] = site_metadata_df['Site'].str[:7]
+
+    # Aggregate metadata by site prefix
+    metadata_agg = site_metadata_df.groupby('site_prefix').agg({
+        'plant_group': 'first',
+        'biome': 'first',
+    }).reset_index()
+
+    prefix_to_group = dict(zip(metadata_agg['site_prefix'], metadata_agg['plant_group']))
+    prefix_to_biome = dict(zip(metadata_agg['site_prefix'], metadata_agg['biome']))
+
+    # Aggregate correlations by prefix
+    r_records = {}
+    p_records = {}
+    # for site, corr in all_correlations.items():
+    #     prefix = site[:7]
+    for site, corr in all_correlations.items():
+        prefix = site   # keep full site / treatment ID
+        if prefix not in r_records:
+            r_records[prefix] = {}
+            p_records[prefix] = {}
+        for metric, (r, p) in corr.items():
+            if metric not in r_records[prefix]:
+                r_records[prefix][metric] = []
+                p_records[prefix][metric] = []
+            if r is not None:
+                r_records[prefix][metric].append(r)
+            if p is not None:
+                p_records[prefix][metric].append(p)
+
+    r_data = {}
+    p_data = {}
+    for prefix in r_records:
+        r_data[prefix] = {m: np.mean(vals) if vals else np.nan for m, vals in r_records[prefix].items()}
+        p_data[prefix] = {m: np.mean(vals) if vals else np.nan for m, vals in p_records[prefix].items()}
+
+    r_df = pd.DataFrame(r_data).T.replace({None: np.nan})
+    p_df = pd.DataFrame(p_data).T.replace({None: np.nan})
+
+    # Add metadata
+    r_df['plant_group'] = r_df.index.map(prefix_to_group)
+    r_df['biome'] = r_df.index.map(prefix_to_biome)
+    p_df['plant_group'] = p_df.index.map(prefix_to_group)
+    p_df['biome'] = p_df.index.map(prefix_to_biome)
+
+    # Get data columns
+    data_columns = [c for c in r_df.columns if c not in ['plant_group', 'biome']]
+
+    # Split by plant group
+    groups = ['angiosperm', 'gymnosperm', 'mixed']
+    group_data = {}
+
+    for group in groups:
+        mask = r_df['plant_group'] == group
+        if mask.any():
+            r_group = r_df.loc[mask].sort_values('biome')[data_columns]
+            p_group = p_df.loc[mask].sort_values('biome')[data_columns]
+
+            # Add group mean
+            r_group.loc['MEAN'] = r_group.mean(skipna=True)
+            p_group.loc['MEAN'] = np.nan
+
+            group_data[group] = (r_group, p_group)
+
+    # Calculate overall mean
+    r_all = r_df[data_columns]
+    r_overall_mean = r_all.mean(skipna=True)
+
+    # Create subplots
+    n_groups = len(group_data)
+    fig, axes = plt.subplots(n_groups + 1, 1, figsize=(10, 2.5 * (n_groups + 1)),
+                              gridspec_kw={'height_ratios': [len(group_data[g][0]) for g in group_data] + [1]})
+
+    if n_groups + 1 == 1:
+        axes = [axes]
+
+    # Plot each group
+    for idx, (group, (r_group, p_group)) in enumerate(group_data.items()):
+        ax = axes[idx]
+
+        # Build annotation matrix
+        sig = p_group.map(
+            lambda p: '***' if p < 0.001 else '**' if p < 0.01 else '*' if p < 0.05 else ''
+        )
+        annot = r_group.copy().astype(str)
+        for row in annot.index:
+            for col in annot.columns:
+                val = r_group.loc[row, col]
+                star = sig.loc[row, col]
+                annot.loc[row, col] = f'{val:.2f}{star}' if not np.isnan(val) else ''
+
+        sns.heatmap(
+            r_group.astype(float),
+            annot=annot,
+            fmt='',
+            cmap='coolwarm',
+            vmin=-1,
+            vmax=1,
+            cbar=idx == 0,
+            cbar_kws={'label': 'Correlation', 'shrink': 0.8} if idx == 0 else {},
+            ax=ax,
+            linewidths=0.5,
+            linecolor='white'
+        )
+
+        ax.set_title(group.upper(), fontsize=12, fontweight='bold', loc='left')
+        ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=9)
+
+        if idx < n_groups - 1:
+            ax.set_xticklabels([])
+            ax.set_xlabel('')
+        else:
+            ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right', fontsize=10)
+
+    # Plot overall mean
+    ax_mean = axes[-1]
+    r_mean_df = pd.DataFrame([r_overall_mean], index=['ALL MEAN'])
+    p_mean_df = pd.DataFrame([[np.nan] * len(data_columns)], index=['ALL MEAN'], columns=data_columns)
+
+    # Build annotation for mean
+    sig_mean = p_mean_df.map(
+        lambda p: '***' if p < 0.001 else '**' if p < 0.01 else '*' if p < 0.05 else ''
+    )
+    annot_mean = r_mean_df.copy().astype(str)
+    for row in annot_mean.index:
+        for col in annot_mean.columns:
+            val = r_mean_df.loc[row, col]
+            star = sig_mean.loc[row, col]
+            annot_mean.loc[row, col] = f'{val:.2f}{star}' if not np.isnan(val) else ''
+
+    sns.heatmap(
+        r_mean_df.astype(float),
+        annot=annot_mean,
+        fmt='',
+        cmap='coolwarm',
+        vmin=-1,
+        vmax=1,
+        cbar=False,
+        ax=ax_mean,
+        linewidths=0.5,
+        linecolor='white'
+    )
+
+    ax_mean.set_title('OVERALL', fontsize=12, fontweight='bold', loc='left')
+    ax_mean.set_yticklabels(ax_mean.get_yticklabels(), rotation=0, fontsize=9)
+    ax_mean.set_xticklabels(ax_mean.get_xticklabels(), rotation=45, ha='right', fontsize=10)
+
+    plt.tight_layout()
+
+    # Add significance legend
+    legend_text = '*** p < 0.001\n**  p < 0.01\n*   p < 0.05'
+    fig.text(0.01, 0.01, legend_text, fontsize=8, ha='left', va='bottom',
+             family='monospace',
+             bbox=dict(boxstyle='round', facecolor='white', alpha=0.9, edgecolor='gray'))
+
+    return fig, axes
+
+def plot_heatmap_summary_param(all_correlations, metadata_path):
+    # ------------------------------------------------------------------
+    # Load metadata
+    # ------------------------------------------------------------------
+    site_metadata_df = pd.read_csv(metadata_path)
+    site_metadata_df["site_prefix"] = site_metadata_df["Site"].str[:7]
+
+    # ------------------------------------------------------------------
+    # Collect correlations per SITE PREFIX (aggregate plots)
+    # ------------------------------------------------------------------
+    r_records = {}
+    p_records = {}
+    plot_counts = {}
+
+    for site, corr in all_correlations.items():
+        prefix = site[:7]
+
+        r_records.setdefault(prefix, {})
+        p_records.setdefault(prefix, {})
+        plot_counts[prefix] = plot_counts.get(prefix, 0) + 1
+
+        if corr is None:
+            continue
+
+        for metric, rp in corr.items():
+            if rp is None or not isinstance(rp, (tuple, list)) or len(rp) != 2:
+                continue
+
+            r, p = rp
+
+            r_records[prefix].setdefault(metric, [])
+            p_records[prefix].setdefault(metric, [])
+
+            if r is not None and not np.isnan(r):
+                r_records[prefix][metric].append(r)
+
+            if p is not None and not np.isnan(p):
+                p_records[prefix][metric].append(p)
+
+    # ------------------------------------------------------------------
+    # Average across plots (simple mean)
+    # ------------------------------------------------------------------
+    r_data = {
+        prefix: {m: np.mean(v) if len(v) > 0 else np.nan for m, v in metrics.items()}
+        for prefix, metrics in r_records.items()
+    }
+
+    p_data = {
+        prefix: {m: np.mean(v) if len(v) > 0 else np.nan for m, v in metrics.items()}
+        for prefix, metrics in p_records.items()
+    }
+
+    r_df = pd.DataFrame(r_data).T
+    p_df = pd.DataFrame(p_data).T
+
+    valid_rows = r_df.notna().any(axis=1)
+    r_df = r_df.loc[valid_rows]
+    p_df = p_df.loc[valid_rows]
+
+    # ------------------------------------------------------------------
+    # Sort alphabetically
+    # ------------------------------------------------------------------
+    r_df = r_df.sort_index()
+    p_df = p_df.loc[r_df.index]
+
+    # ------------------------------------------------------------------
+    # Enforce x-axis metric order
+    # ------------------------------------------------------------------
+    base_vars = ["TSM", "TAir", "PPFD"]
+    metric_order = (
+        [f"SLOPE-{v}" for v in base_vars] +
+        [f"AREA-{v}" for v in base_vars]
+    )
+
+    data_columns = [m for m in metric_order if m in r_df.columns]
+    r_df_plot = r_df[data_columns]
+    p_df_plot = p_df[data_columns]
+
+    # ------------------------------------------------------------------
+    # Build annotations with significance asterisks
+    # ------------------------------------------------------------------
+    sig = p_df_plot.map(
+        lambda p: "***" if p < 0.001 else
+                  "**" if p < 0.01 else
+                  "*" if p < 0.05 else ""
+    )
+
+    annot = r_df_plot.copy().astype(str)
+
+    for r in annot.index:
+        for c in annot.columns:
+            v = r_df_plot.loc[r, c]
+            annot.loc[r, c] = f"{v:.2f}{sig.loc[r, c]}" if not np.isnan(v) else ""
+
+    # ------------------------------------------------------------------
+    # Y-axis labels WITH plot-count indicator
+    # ------------------------------------------------------------------
+    yticklabels = []
+    for idx in r_df_plot.index:
+        n = plot_counts.get(idx, 1)
+        label = f"{idx} (n={n})" if n > 1 else idx
+        yticklabels.append(label)
+
+    # ------------------------------------------------------------------
+    # Plot
+    # ------------------------------------------------------------------
+    fig, ax = plt.subplots(figsize=(9, max(4, len(r_df_plot) * 0.35)))
+
+    cmap = sns.color_palette("coolwarm", as_cmap=True)
+    cmap.set_bad("white")
+
+    sns.heatmap(
+        r_df_plot.astype(float),
+        annot=annot,
+        fmt="",
+        cmap=cmap,
+        vmin=-1,
+        vmax=1,
+        linewidths=0.8,
+        linecolor="white",
+        annot_kws={"fontsize": 9},
+        cbar_kws={"label": "Correlation", "shrink": 0.6, "aspect": 30},
+        ax=ax
+    )
+
+    ax.set_yticklabels(yticklabels, rotation=0, fontsize=10)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=40, ha="right")
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    plt.tight_layout()
+    plt.subplots_adjust(left=0.18)
+
+    return fig, ax
 
 def plot_percentiles(anomalies, code, fig=None, outer_spec=None):
     sites = list(anomalies.keys())
@@ -592,7 +905,7 @@ def plot_percentiles(anomalies, code, fig=None, outer_spec=None):
                 centroid_x + dx,
                 centroid_y + dy,
                 str(label),
-                fontsize=15,
+                fontsize=16,
                 weight="bold",
                 ha="center",
                 va="center",
@@ -607,11 +920,16 @@ def plot_percentiles(anomalies, code, fig=None, outer_spec=None):
 
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
-        ax.set_title(f"Site: {site}", fontsize=30)
-        ax.tick_params(labelsize=20)
+        ax.set_title(f"Site: {site}", fontsize=32)
+        ax.tick_params(labelsize=22)
+        
+        # Add subplot labels
+        subplot_labels = ['a)', 'b)', 'c)']
+        if idx < len(subplot_labels):
+            ax.text(-0.05, 1.1, subplot_labels[idx], transform=ax.transAxes, fontsize=22, fontweight='bold', va='top', ha='right')
 
-    axes[0].set_ylabel(r"TSM in $\frac{cm^{3}}{cm^{3}}$", fontsize=25)
-    axes[1].set_xlabel(r"TAir in $^\circ$C", fontsize=25, labelpad=15)
+    axes[0].set_ylabel(r"TSM in $\frac{cm^{3}}{cm^{3}}$", fontsize=26)
+    axes[1].set_xlabel(r"TAir in $^\circ$C", fontsize=26, labelpad=15)
     # Create custom legend for point sizes (area)
     # Choose a few representative area values (e.g., small, medium, large)
     area_legend_values = [area_min, (area_min + area_max) / 2, area_max]
@@ -641,8 +959,8 @@ def plot_percentiles(anomalies, code, fig=None, outer_spec=None):
         title="nAREA",
         loc="center left",
         bbox_to_anchor=(0.25, 0.5),  # adjust leftward placement as needed
-        fontsize=18,
-        title_fontsize=20,
+        fontsize=20,
+        title_fontsize=22,
         frameon=False,
     )
 
@@ -739,8 +1057,13 @@ def plot_hysteresis_main(mean_cycles, fig=None, outer_spec=None):
 
             ax = fig.add_subplot(spec[0, j + 1])
             plot_dailycycle(groups, ax, quadrant_linestyles=quadrant_linestyles)
-            ax.tick_params(axis="x", labelsize=20)
-            ax.tick_params(axis="y", labelsize=20)
+            ax.tick_params(axis="x", labelsize=22)
+            ax.tick_params(axis="y", labelsize=22)
+            
+            # Add subplot labels
+            subplot_labels = ['d)', 'e)', 'f)']
+            if j < len(subplot_labels):
+                ax.text(-0.05, 1.1, subplot_labels[j], transform=ax.transAxes, fontsize=22, fontweight='bold', va='top', ha='right')
         else:
             # First column: legend
             ax = fig.add_subplot(spec[0, 0])
@@ -762,7 +1085,7 @@ def plot_hysteresis_main(mean_cycles, fig=None, outer_spec=None):
             ax.legend(
                 handles=legend_elements,
                 loc="center",
-                fontsize=30,
+                fontsize=32,
                 handlelength=2,
                 frameon=False,
                 labelspacing=1.5,
@@ -771,25 +1094,11 @@ def plot_hysteresis_main(mean_cycles, fig=None, outer_spec=None):
         axs.append(ax)
 
     # Shared labels
-    axs[0].set_ylabel(r"Sapflux (SF) in ($\frac{m^{3}}{s}$)", fontsize=25)
-    axs[n_sites // 2].set_xlabel(r"VPD in $kPa$", fontsize=25)
+    axs[0].set_ylabel(r"Sapflux (SF) in ($\frac{m^{3}}{s}$)", fontsize=26)
+    axs[n_sites // 2].set_xlabel(r"VPD in $kPa$", fontsize=26)
 
 
 def plot_patterns(extreme_anomalies, mean_cycles, code):
-    # collect (site, cluster) pairs to drop
-    # to_drop = []
-
-    # for site, df in extreme_anomalies.items():
-    # group by cluster within this site
-    # for cluster_id, sub_df in df.groupby("Cluster"):
-    # if len(sub_df) < 8:
-    #     # print(f"Dropping: site={site}, cluster={cluster_id} (rows={len(sub_df)})")
-    #     to_drop.append((site, cluster_id))
-
-    # Now remove from mean_cycles
-    # for site, cluster_id in to_drop:
-    # del mean_cycles[site][cluster_id]
-
     fig = plt.figure(figsize=(30, 15))
     outer = gridspec.GridSpec(2, 1, height_ratios=[1, 1], hspace=0.3)
 
@@ -808,8 +1117,8 @@ def plot_patterns(extreme_anomalies, mean_cycles, code):
     sm.set_array([])
     cbar_ax = fig.add_axes([0.92, 0.54, 0.015, 0.35])
     cbar = fig.colorbar(sm, cax=cbar_ax)
-    cbar.set_label("sSLOPE", fontsize=25)
-    cbar.ax.tick_params(labelsize=20)
+    cbar.set_label("sSLOPE", fontsize=26)
+    cbar.ax.tick_params(labelsize=22)
 
     return fig
 
@@ -890,14 +1199,14 @@ def plot_rates(site, fig, spec):
 
         # Add ticks only on outer edges
         if row == 1:  # bottom row → show x ticks
-            ax_inner.tick_params(axis="x", bottom=True, labelbottom=True, labelsize=12)
-            ax_inner.set_xlabel("VPD (kPa)", fontsize=20)
+            ax_inner.tick_params(axis="x", bottom=True, labelbottom=True, labelsize=14)
+            ax_inner.set_xlabel("VPD (kPa)", fontsize=22)
         else:  # top row → hide x ticks
             ax_inner.tick_params(axis="x", bottom=False, labelbottom=False)
 
         if col == 0:  # left column → show y ticks
-            ax_inner.tick_params(axis="y", left=True, labelleft=True, labelsize=12)
-            ax_inner.set_ylabel(r"Sap Flux ($\frac{m^{3}}{s}$)", fontsize=20)
+            ax_inner.tick_params(axis="y", left=True, labelleft=True, labelsize=14)
+            ax_inner.set_ylabel(r"Sapflux ($\frac{m^{3}}{s}$)", fontsize=22)
         else:  # right column → hide y ticks
             ax_inner.tick_params(axis="y", left=False, labelleft=False)
 
@@ -914,7 +1223,7 @@ def plot_rates(site, fig, spec):
         ax_inner.axhline(hourly_sapmax, ls="--", lw=1.5, color="gray")
 
         # Add title for each sample rate
-        ax_inner.set_title(samplerate, fontsize=20)
+        ax_inner.set_title(samplerate, fontsize=22)
 
 
 def plot_coefficients(slope_longterm, area_longterm, fig, spec):
@@ -935,8 +1244,6 @@ def plot_coefficients(slope_longterm, area_longterm, fig, spec):
     stats = grouped.agg(
         median="median", Q1=lambda x: x.quantile(0.25), Q3=lambda x: x.quantile(0.75)
     )
-    # print("Medians and IQR (25th and 75th percentiles):")
-    # print(stats)
 
     # Plot boxplot
     sns.boxplot(
@@ -951,17 +1258,17 @@ def plot_coefficients(slope_longterm, area_longterm, fig, spec):
 
     # Aesthetic tweaks
     ax.set_ylim(0, 1)
-    ax.set_xlabel("Sample Rate", fontsize=20)
-    ax.set_ylabel("Pearson $R^2$", fontsize=20)
+    ax.set_xlabel("Sample Rate", fontsize=22)
+    ax.set_ylabel("Pearson $R^2$", fontsize=22)
     ax.axhline(0.5, color="gray", linestyle="--", linewidth=1)
     ax.tick_params(axis="x", rotation=45)
 
     for label in ax.get_xticklabels():
-        label.set_fontsize(15)
+        label.set_fontsize(16)
         for label in ax.get_yticklabels():
-            label.set_fontsize(15)
+            label.set_fontsize(16)
     ax.get_legend().remove()
-
+    
     return ax
 
 
@@ -987,46 +1294,26 @@ def plot_srs(slope_longterm, area_longterm):
     # PANEL LABELS
     # -------------------------------------------------------
 
-    # A) for the left 2×2 block of rates plots
+    # a) for the left 2×2 block of rates plots
     fig.text(
         0.03,  # left margin
         0.97,  # near top of figure
-        "A)",
-        fontsize=25,
+        "a)",
+        fontsize=26,
         fontweight="bold",
         ha="left",
         va="top",
     )
 
-    # B) for the right large boxplot panel
+    # b) for the right large boxplot panel
     fig.text(
         0.53,  # shifted into the right panel column
         0.97,
-        "B)",
-        fontsize=25,
+        "b)",
+        fontsize=26,
         fontweight="bold",
         ha="left",
         va="top",
-    )
-
-    # -------------------------------------------------------
-    # Combined legend
-    # -------------------------------------------------------
-    legend_rates = [
-        Line2D([0], [0], label="SLOPE", color="#1f77b4", lw=10),
-        Line2D([0], [0], label="AREA", color="#2c2c2c", lw=10),
-        Line2D([0], [0], label="Min/Max Ref", color="grey", linestyle="--", lw=3),
-        Line2D([0], [0], label="Min/Max Sample", color="black", linestyle="--", lw=3),
-    ]
-
-    fig.legend(
-        handles=legend_rates,
-        loc="upper center",
-        fontsize=30,
-        handlelength=1.2,
-        frameon=False,
-        bbox_to_anchor=(0.28, 0.05),
-        ncols=2,
     )
 
 
@@ -1125,12 +1412,17 @@ def plot_distributions_focus(extreme_anomalies):
                     zorder=2,
                 )
 
-        ax_slope.set_xlabel("sSLOPE", fontsize=11, fontweight="bold")
-        ax_slope.set_ylabel("Density", fontsize=11)
-        ax_slope.set_title(f"{site}", fontsize=12, fontweight="bold")
-        ax_slope.legend(loc="best", fontsize=9)
+        ax_slope.set_xlabel("sSLOPE", fontsize=13, fontweight="bold")
+        ax_slope.set_ylabel("Density", fontsize=13)
+        ax_slope.set_title(f"{site}", fontsize=14, fontweight="bold")
+        ax_slope.legend(loc="best", fontsize=11)
         ax_slope.grid(True, alpha=0.3, linestyle="--")
         ax_slope.axhline(y=0, color="gray", linestyle="-", linewidth=0.5)
+        
+        # Add subplot labels for top row
+        subplot_labels_top = ['p', 'q', 'r']
+        if col_idx < len(subplot_labels_top):
+            ax_slope.text(-0.1, 1.1, subplot_labels_top[col_idx], transform=ax_slope.transAxes, fontsize=18, fontweight='bold', va='top', ha='right')
 
         # --- AREA distributions (lower row) ---
         ax_area = axes[1, col_idx]
@@ -1195,14 +1487,19 @@ def plot_distributions_focus(extreme_anomalies):
                     zorder=2,
                 )
 
-        ax_area.set_xlabel("nAREA", fontsize=11, fontweight="bold")
-        ax_area.set_ylabel("Density", fontsize=11)
-        ax_area.legend(loc="best", fontsize=9)
+        ax_area.set_xlabel("nAREA", fontsize=13, fontweight="bold")
+        ax_area.set_ylabel("Density", fontsize=13)
+        ax_area.legend(loc="best", fontsize=11)
         ax_area.grid(True, alpha=0.3, linestyle="--")
         ax_area.axhline(y=0, color="gray", linestyle="-", linewidth=0.5)
+        
+        # Add subplot labels for bottom row
+        subplot_labels_bottom = ['s', 't', 'u']
+        if col_idx < len(subplot_labels_bottom):
+            ax_area.text(-0.1, 1.1, subplot_labels_bottom[col_idx], transform=ax_area.transAxes, fontsize=18, fontweight='bold', va='top', ha='right')
 
         # For SLOPE legend
-        legend_slope = ax_slope.legend(loc="best", fontsize=9)
+        legend_slope = ax_slope.legend(loc="best", fontsize=11)
         for handle in legend_slope.legend_handles:
             handle.set_linewidth(2.5)
             if hasattr(handle, "set_markersize"):
@@ -1210,10 +1507,10 @@ def plot_distributions_focus(extreme_anomalies):
         # Make legend lines longer
         for line in legend_slope.get_lines():
             line.set_linewidth(2.5)
-        ax_slope.legend(loc="best", fontsize=9, handlelength=3.5, handleheight=1.5)
+        ax_slope.legend(loc="best", fontsize=11, handlelength=3.5, handleheight=1.5)
 
         # For AREA legend
-        legend_area = ax_area.legend(loc="best", fontsize=9)
+        legend_area = ax_area.legend(loc="best", fontsize=11)
         for handle in legend_area.legend_handles:
             handle.set_linewidth(2.5)
             if hasattr(handle, "set_markersize"):
@@ -1221,7 +1518,7 @@ def plot_distributions_focus(extreme_anomalies):
         # Make legend lines longer
         for line in legend_area.get_lines():
             line.set_linewidth(2.5)
-        ax_area.legend(loc="best", fontsize=9, handlelength=3.5, handleheight=1.5)
+        ax_area.legend(loc="best", fontsize=11, handlelength=3.5, handleheight=1.5)
 
     plt.tight_layout()
 
@@ -1298,14 +1595,14 @@ def plot_distribution_TSM_TAir(anomalies_TAir_TSM):
             except:
                 pass
 
-    ax_tair.set_xlabel("TAir Anomaly (°C)", fontsize=12, fontweight="bold")
-    ax_tair.set_ylabel("Density", fontsize=12, fontweight="bold")
-    # ax_tair.set_title(
-    #     "Air Temperature Anomaly Distribution", fontsize=13, fontweight="bold"
-    # )
-    ax_tair.legend(loc="best", fontsize=9, handlelength=1, handleheight=1.5)
+    ax_tair.set_xlabel("TAir Anomaly (°C)", fontsize=14, fontweight="bold")
+    ax_tair.set_ylabel("Density", fontsize=14, fontweight="bold")
+    ax_tair.legend(loc="best", fontsize=11, handlelength=1, handleheight=1.5)
     ax_tair.grid(True, alpha=0.3, linestyle="--", zorder=0)
     ax_tair.axvline(x=0, color="black", linestyle="-", linewidth=1, alpha=0.5, zorder=1)
+    
+    # Add subplot label
+    ax_tair.text(-0.1, 1.05, 'v', transform=ax_tair.transAxes, fontsize=18, fontweight='bold', va='top', ha='right')
 
     # --- TSM anomaly distribution (right panel) ---
     ax_tsm = axes[1]
@@ -1359,14 +1656,17 @@ def plot_distribution_TSM_TAir(anomalies_TAir_TSM):
             except:
                 pass
 
-    ax_tsm.set_xlabel("TSM Anomaly (cm³/cm³)", fontsize=12, fontweight="bold")
-    ax_tsm.set_ylabel("Density", fontsize=12, fontweight="bold")
+    ax_tsm.set_xlabel("TSM Anomaly (cm³/cm³)", fontsize=14, fontweight="bold")
+    ax_tsm.set_ylabel("Density", fontsize=14, fontweight="bold")
     # ax_tsm.set_title(
     #     "Soil Moisture Anomaly Distribution", fontsize=13, fontweight="bold"
     # )
-    ax_tsm.legend(loc="best", fontsize=9, handlelength=1, handleheight=1.5)
+    ax_tsm.legend(loc="best", fontsize=11, handlelength=1, handleheight=1.5)
     ax_tsm.grid(True, alpha=0.3, linestyle="--", zorder=0)
     ax_tsm.axvline(x=0, color="black", linestyle="-", linewidth=1, alpha=0.5, zorder=1)
+    
+    # Add subplot label
+    ax_tsm.text(-0.1, 1.05, 'w', transform=ax_tsm.transAxes, fontsize=18, fontweight='bold', va='top', ha='right')
 
     plt.tight_layout()
 
@@ -1405,8 +1705,8 @@ def plot_distributions_SLOPE_AREA(slope_area_distributions):
                 x_range = np.linspace(data.min() - 0.1, data.max() + 0.1, 300)
                 density = kde(x_range)
 
-                # Calculate mean
-                mean_val = data.mean()
+                # Calculate median
+                median_val = data.median()
 
                 # Plot KDE line with mean in label
                 ax_slope.plot(
@@ -1414,7 +1714,7 @@ def plot_distributions_SLOPE_AREA(slope_area_distributions):
                     density,
                     color=combination_colors[combination],
                     linewidth=2.5,
-                    label=f"{combination} (μ={mean_val:.3f})",
+                    label=f"{combination}",
                     alpha=0.8,
                     zorder=3,
                 )
@@ -1428,26 +1728,19 @@ def plot_distributions_SLOPE_AREA(slope_area_distributions):
                     zorder=1,
                 )
 
-                # Add vertical line at the mean
-                ax_slope.axvline(
-                    x=mean_val,
-                    color=combination_colors[combination],
-                    linestyle="--",
-                    linewidth=2,
-                    alpha=0.7,
-                    zorder=3,
-                )
             except:
                 pass
 
-    ax_slope.set_xlabel("sSLOPE", fontsize=12, fontweight="bold")
-    ax_slope.set_ylabel("Density", fontsize=12, fontweight="bold")
-    # ax_slope.set_title("Slope Distribution", fontsize=13, fontweight="bold")
-    ax_slope.legend(loc="best", fontsize=9, handlelength=1, handleheight=1.5)
+    ax_slope.set_xlabel("sSLOPE", fontsize=14, fontweight="bold")
+    ax_slope.set_ylabel("Density", fontsize=14, fontweight="bold")
+    ax_slope.legend(loc="best", fontsize=11, handlelength=1, handleheight=1.5)
     ax_slope.grid(True, alpha=0.3, linestyle="--", zorder=0)
     ax_slope.axvline(
         x=0, color="black", linestyle="-", linewidth=1, alpha=0.5, zorder=1
     )
+    
+    # Add subplot label
+    ax_slope.text(-0.1, 1.05, 'a)', transform=ax_slope.transAxes, fontsize=18, fontweight='bold', va='top', ha='right')
 
     # --- AREA distribution (right panel) ---
     ax_area = axes[1]
@@ -1467,7 +1760,7 @@ def plot_distributions_SLOPE_AREA(slope_area_distributions):
                 density = kde(x_range)
 
                 # Calculate mean
-                mean_val = data.mean()
+                median_val = data.median()
 
                 # Plot KDE line with mean in label
                 ax_area.plot(
@@ -1475,7 +1768,7 @@ def plot_distributions_SLOPE_AREA(slope_area_distributions):
                     density,
                     color=combination_colors[combination],
                     linewidth=2.5,
-                    label=f"{combination} (μ={mean_val:.3f})",
+                    label=f"{combination}",
                     alpha=0.8,
                     zorder=3,
                 )
@@ -1489,24 +1782,17 @@ def plot_distributions_SLOPE_AREA(slope_area_distributions):
                     zorder=1,
                 )
 
-                # Add vertical line at the mean
-                ax_area.axvline(
-                    x=mean_val,
-                    color=combination_colors[combination],
-                    linestyle="--",
-                    linewidth=2,
-                    alpha=0.7,
-                    zorder=3,
-                )
             except:
                 pass
 
-    ax_area.set_xlabel("nAREA", fontsize=12, fontweight="bold")
-    ax_area.set_ylabel("Density", fontsize=12, fontweight="bold")
-    # ax_area.set_title("Area Distribution", fontsize=13, fontweight="bold")
-    ax_area.legend(loc="best", fontsize=9, handlelength=1, handleheight=1.5)
+    ax_area.set_xlabel("nAREA", fontsize=14, fontweight="bold")
+    ax_area.set_ylabel("Density", fontsize=14, fontweight="bold")
+    ax_area.legend(loc="best", fontsize=11, handlelength=1, handleheight=1.5)
     ax_area.grid(True, alpha=0.3, linestyle="--", zorder=0)
     ax_area.axvline(x=0, color="black", linestyle="-", linewidth=1, alpha=0.5, zorder=1)
+    
+    # Add subplot label
+    ax_area.text(-0.1, 1.05, 'b)', transform=ax_area.transAxes, fontsize=18, fontweight='bold', va='top', ha='right')
 
     plt.tight_layout()
 

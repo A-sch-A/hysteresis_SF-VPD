@@ -11,7 +11,6 @@ Instructions:
 4. Explore the diurnal cycles of SF and VPD!
 5. Have fun :)
 """
-
 import argparse
 
 import pandas as pd
@@ -19,20 +18,14 @@ import pandas as pd
 from analyse import (
     calc_climate_classification,
     calc_cycles_all_sites,
-    calc_distributions_anomalies,
     calc_distributions_slope_area,
-    # calc_heatmap,
     calc_hysteresis_patterns,
-    # calc_maps_of_coefficients,
     calc_samplerates,
     plot_climate_classification,
     plot_cycles_all_sites,
-    plot_distributions_anomalies,
-    plot_distributions_metrics,
     plot_distributions_slope_area,
-    plot_heatmap,
+    plot_heatmap_parameters,
     plot_hysteresis_patterns,
-    # plot_maps_of_coefficients,
     plot_samplerates,
     process_all_sites,
 )
@@ -41,12 +34,10 @@ from config import (
     FIG_DIR,
     FOCUS_SITES,
     FOCUS_SITES_INFO,
-    LEVEL,
     TMP_DIR,
     get_logger,
 )
 from mapping import plot_map
-from select_sites import get_selection
 from util import get_metrics, get_resampled, get_subdaily
 
 log = get_logger(__name__)
@@ -62,11 +53,17 @@ def prepare():
     """
 
     log.info("Starting preparation step (site selection)...")
-    # get_selection(CSV_ROOT, LEVEL, TMP_DIR)
     log.info("Preparation completed. Site CSVs saved to TMP_DIR.")
     # load input data created in select_sites -> selected_sites
-    selected_sites = pd.read_csv(TMP_DIR / "plant_sites.csv")["site"]  # only TSM+TAir!
-    sites_to_prepare = selected_sites
+    input_data = pd.read_csv(TMP_DIR / "plant_sites.csv")
+
+    input_data = input_data[input_data["code"] != "TAir-only"]
+    print(input_data)
+
+     # for testing, limit to first 5 sites
+    sites_to_prepare = input_data["site"].to_list()
+    print(sites_to_prepare)
+
     log.info("Plotting the map ...")
     plot_map(
         site_csv=TMP_DIR / "plant_sites.csv",
@@ -74,7 +71,7 @@ def prepare():
         projection=None,
         figsize=(16, 8),
     )
-    exit()
+
     for site in sites_to_prepare:
         environment = CSV_ROOT / f"plant/{site}_env_data.csv"
         sapflux = CSV_ROOT / f"plant/{site}_sapf_data.csv"
@@ -103,52 +100,46 @@ def main():
     input_data = input_data[input_data["code"] != "TAir-only"]
 
     sites = input_data["site"].to_list()
-
     # ---------- process through sites ----------
     agg = process_all_sites(input_data=input_data, sites=sites, focus_sites=FOCUS_SITES)
 
     # unpack aggregated outputs
     site_outputs = agg["site_outputs"]
     growing_season_list = agg["growing_season_list"]
-    # subdaily_list = agg["subdaily_list"]
+    combined_all = agg["combined_all"]
     subdaily_focus = agg["subdaily_focus"]
     slope_coefficients_to_hourly = agg["slope_coefficients_to_hourly"]
     area_coefficients_to_hourly = agg["area_coefficients_to_hourly"]
     all_seasonal_correlations = agg["all_seasonal_correlations"]
     growing_season_anom_list = agg["growing_season_stand_anom_list"]
     site_metadata = agg["site_metadata"]
-    print(site_metadata)
-    exit()
+    # export site metadata
+    site_metadata_df = pd.DataFrame(site_metadata)
+    site_metadata_df.to_csv(TMP_DIR / "site_metadata.csv", index=False)
+
     # # ---------- 1. classification_climate for real observations ----------
-    df_clusters = calc_climate_classification(growing_season_list)
-    plot_climate_classification(df_clusters)
+    df_clusters = calc_climate_classification(combined_all)
+    plot_climate_classification(df_clusters) # 45 sites, including plots
 
     # # ---------- 2. cycle_all_sites ----------
     cycles_all_sites = calc_cycles_all_sites(site_outputs, FOCUS_SITES_INFO)
     plot_cycles_all_sites(cycles_all_sites)
 
-    # # ---------- 3. summary_heatmap_org_avg ----------
-    # heatmap_values = calc_heatmap(all_seasonal_correlations)
-    plot_heatmap(all_seasonal_correlations)
-
-    # # ---------- 4. coefficients_maps
-    # maps_coefficients = calc_maps_of_coefficients(all_seasonal_correlations, input_data) # i we include it again, we need to care include significance, which is part of correlations now
-    # plot_maps_of_coefficients(maps_coefficients)
+    # # ---------- 3. summary_heatmap_parameters ----------
+    plot_heatmap_parameters(all_seasonal_correlations, TMP_DIR/"site_metadata.csv")
 
     # # ---------- 5. patterns_supplements ----------
     hysteresis_patterns = calc_hysteresis_patterns(
         agg["focus_growing_season"], subdaily_focus
     )
     plot_hysteresis_patterns(hysteresis_patterns)
-    plot_distributions_metrics(hysteresis_patterns["extreme_anomalies"])
 
-    anomalies_TAir_TSM = calc_distributions_anomalies(growing_season_anom_list)
-    plot_distributions_anomalies(anomalies_TAir_TSM)
 
     distributions_SLOPE_AREA = calc_distributions_slope_area(growing_season_anom_list)
     plot_distributions_slope_area(distributions_SLOPE_AREA)
 
     # # ---------- 6. samplerates
+    print(len(slope_coefficients_to_hourly), "sites for evaluation of samplerates")
     samplerates = calc_samplerates(
         slope_coefficients_to_hourly, area_coefficients_to_hourly
     )

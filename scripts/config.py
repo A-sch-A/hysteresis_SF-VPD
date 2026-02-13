@@ -60,7 +60,26 @@ LEVEL = "plant"
 OVERLAP_THRESHOLD = 0.8
 GROWING_SEASON_DAYLENGTH = 12  # hours
 GROWING_SEASON_TEMP = 5  # degree celsius
-# TODO: add temperature threshold?
+GYMNOSPERM_GENERA = {
+    'Pinus', 'Picea', 'Larix', 'Juniperus', 'Agathis',
+    'Abies', 'Cedrus', 'Pseudotsuga', 'Tsuga', 'Thuja'
+}
+
+# Define treatment values that represent "no treatment" or natural conditions
+NO_TREATMENT_VALUES = {
+    # Clear "no treatment" values
+    'natural conditions',
+    'Control - Unthinned, unpruned, unfertilised',
+    'Control',
+    'control',
+    'Reference',
+    'Ambient Control',
+    # Borderline cases (minimal/no intervention)
+    'non_thinned',
+    'Before Thinning',
+    'Before thinning',
+    'Pre-thinning',
+}
 
 # ---------------------------------------------------------------------
 # CSV I/O conventions
