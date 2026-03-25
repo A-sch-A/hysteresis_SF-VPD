@@ -1,16 +1,14 @@
-"""
-Main script for the analysis of vegetation health based on sub-daily sap flow variability.
+# main.py — entry point for the sap flow hysteresis analysis.
+#
+# Usage:
+#   python main.py --mode prepare   # compute metrics from raw SAPFLUXNET data
+#   python main.py --mode main      # run the analysis and generate figures
+#
+# Prerequisites:
+#   1. Set your directories in config.py
+#   2. Run select_sites.py first to produce the site selection CSV
+#   3. Create your environment using environment.yml
 
-This script uses data from the SAPFLUXNET database.
-
-Instructions:
--------------
-1. Set your directories in `config.py`
-2. Create your environment using `environment.yml`
-3. Read the notes in `README.md`
-4. Explore the diurnal cycles of SF and VPD!
-5. Have fun :)
-"""
 import argparse
 
 import pandas as pd
@@ -44,30 +42,20 @@ log = get_logger(__name__)
 
 
 def prepare():
-    """
-    Preparation step SAPFLUXNET:
-    Evaluates the overlap between hysteresis data (sap flow, VPD)
-    and hydrometeorological drivers (TAir, TSM, etc.) for all sites
-    in the selected SAPFLUXNET data level(s).
-    It then calculates the hysteresis metrics: SLOPE and AREA.
-    """
+    # compute SLOPE and AREA metrics at multiple sample rates for each selected site.
+    # reads the site selection CSV produced by select_sites.py.
 
-    log.info("Starting preparation step (site selection)...")
-    log.info("Preparation completed. Site CSVs saved to TMP_DIR.")
-    # load input data created in select_sites -> selected_sites
+    log.info("Starting preparation step ...")
     input_data = pd.read_csv(TMP_DIR / "plant_sites.csv")
-
     input_data = input_data[input_data["code"] != "TAir-only"]
-    print(input_data)
 
-     # for testing, limit to first 5 sites
     sites_to_prepare = input_data["site"].to_list()
-    print(sites_to_prepare)
+    log.info("%d sites to prepare", len(sites_to_prepare))
 
     log.info("Plotting the map ...")
     plot_map(
         site_csv=TMP_DIR / "plant_sites.csv",
-        output_path=FIG_DIR / "map.pdf",
+        output_path=FIG_DIR / "fig02.pdf",
         projection=None,
         figsize=(16, 8),
     )
@@ -76,34 +64,29 @@ def prepare():
         environment = CSV_ROOT / f"plant/{site}_env_data.csv"
         sapflux = CSV_ROOT / f"plant/{site}_sapf_data.csv"
 
-        # Retrieve sub-daily vapor pressure deficit (VPD) and sap flux (SF) data
-        log.info(f"Get subdaily data for {site}")
+        log.info("Get subdaily data for %s", site)
         subdaily = get_subdaily(sapflux, environment)
 
-        # Perform resampling of sub-daily data for assessment of hysteresis from space
         resamplings = get_resampled(subdaily)
 
-        log.info(f"Preapare csv files for hysteresis metrics SLOPE and AREA for {site}")
+        log.info("Compute SLOPE and AREA for %s", site)
         get_metrics(resamplings, site)
-        # Additional processing can be added here as needed
 
-    log.info("Data preparation complete. Proceeding to main processing...")
-    main()  # Call the main function after preparation
+    log.info("Preparation complete. Proceeding to main analysis ...")
+    main()
 
 
 def main():
-    """
-    Main analysis pipeline entry point.
-    """
-    # Load input data containing site information
+    # run the full analysis pipeline: process sites, then generate all figures.
+
     input_data = pd.read_csv(TMP_DIR / "plant_sites.csv")
     input_data = input_data[input_data["code"] != "TAir-only"]
 
     sites = input_data["site"].to_list()
-    # ---------- process through sites ----------
+
+    # process all sites
     agg = process_all_sites(input_data=input_data, sites=sites, focus_sites=FOCUS_SITES)
 
-    # unpack aggregated outputs
     site_outputs = agg["site_outputs"]
     growing_season_list = agg["growing_season_list"]
     combined_all = agg["combined_all"]
@@ -113,33 +96,34 @@ def main():
     all_seasonal_correlations = agg["all_seasonal_correlations"]
     growing_season_anom_list = agg["growing_season_stand_anom_list"]
     site_metadata = agg["site_metadata"]
+
     # export site metadata
     site_metadata_df = pd.DataFrame(site_metadata)
     site_metadata_df.to_csv(TMP_DIR / "site_metadata.csv", index=False)
 
-    # # ---------- 1. classification_climate for real observations ----------
+    # Fig. A1: climate classification
     df_clusters = calc_climate_classification(combined_all)
-    plot_climate_classification(df_clusters) # 45 sites, including plots
+    plot_climate_classification(df_clusters)
 
-    # # ---------- 2. cycle_all_sites ----------
+    # Fig. 3: seasonal cycles for focus sites
     cycles_all_sites = calc_cycles_all_sites(site_outputs, FOCUS_SITES_INFO)
     plot_cycles_all_sites(cycles_all_sites)
 
-    # # ---------- 3. summary_heatmap_parameters ----------
-    plot_heatmap_parameters(all_seasonal_correlations, TMP_DIR/"site_metadata.csv")
+    # Fig. 4: correlation heatmap
+    plot_heatmap_parameters(all_seasonal_correlations, TMP_DIR / "site_metadata.csv")
 
-    # # ---------- 5. patterns_supplements ----------
+    # Fig. 5: percentile patterns and hysteresis fingerprints
     hysteresis_patterns = calc_hysteresis_patterns(
         agg["focus_growing_season"], subdaily_focus
     )
     plot_hysteresis_patterns(hysteresis_patterns)
 
-
+    # Fig. 6: SLOPE and AREA distributions
     distributions_SLOPE_AREA = calc_distributions_slope_area(growing_season_anom_list)
     plot_distributions_slope_area(distributions_SLOPE_AREA)
 
-    # # ---------- 6. samplerates
-    print(len(slope_coefficients_to_hourly), "sites for evaluation of samplerates")
+    # Fig. 7: sample-rate comparison
+    log.info("%d sites for sample-rate evaluation", len(slope_coefficients_to_hourly))
     samplerates = calc_samplerates(
         slope_coefficients_to_hourly, area_coefficients_to_hourly
     )
@@ -152,7 +136,7 @@ if __name__ == "__main__":
         "--mode",
         choices=["prepare", "main"],
         required=True,
-        help="Specify 'prepare' to run the preparation function or 'main' to run the main processing function.",
+        help="'prepare' to compute metrics, 'main' to run the analysis.",
     )
     args = parser.parse_args()
 

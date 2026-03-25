@@ -1,0 +1,24 @@
+# environment.yml — minimal conda environment for the sap flow hysteresis analysis.
+#
+# Usage:
+#   conda env create -f environment.yml
+#   conda activate treepulse
+
+name: treepulse
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.10
+  - cartopy
+  - geopandas
+  - matplotlib
+  - numpy
+  - pandas
+  - scipy
+  - seaborn
+  - shapely
+  - pip
+  - pip:
+    - suntimes
+    - timezonefinder

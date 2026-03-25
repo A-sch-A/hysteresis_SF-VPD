@@ -1,3 +1,5 @@
+# daylength.py — compute daily sunlight duration for a given site.
+
 from datetime import datetime
 from pathlib import Path
 
@@ -20,10 +22,8 @@ def daylength(
 
     Parameters
     ----------
-    par_dir : Path
-        Base directory containing all SAPFLUXNET data (e.g. CSV_ROOT).
-    level : str
-        Data level (e.g., "leaf", "plant", or "sapwood").
+    md_file : Path
+        Path to the site metadata CSV file (e.g. ``<site>_site_md.csv``).
     si : str
         Site identifier used to locate the metadata file (e.g., "DE-Tha").
     first_year : int
@@ -47,32 +47,25 @@ def daylength(
     - Altitude is assumed to be 0 unless extended metadata are available.
     """
 
-    # ------------------------------------------------------------------
-    # Load site metadata
-    # ------------------------------------------------------------------
+    # load site metadata
     md = pd.read_csv(md_file)
     latitude = md["si_lat"][0]
     longitude = md["si_long"][0]
 
-    # ------------------------------------------------------------------
-    # Determine timezone
-    # ------------------------------------------------------------------
+    # determine timezone
     tf = timezonefinder.TimezoneFinder()
     timezone_str = tf.certain_timezone_at(lat=latitude, lng=longitude)
     if timezone_str is None:
         raise ValueError(
-            f"Could not determine timezone for site '{si}' (lat={latitude}, lon={longitude})."
+            f"Could not determine timezone for site '{si}' "
+            f"(lat={latitude}, lon={longitude})."
         )
 
-    # ------------------------------------------------------------------
-    # Initialize SunTimes and date range
-    # ------------------------------------------------------------------
+    # initialize SunTimes and date range
     sun = SunTimes(latitude=latitude, longitude=longitude, altitude=0)
     dates = pd.date_range(start=f"1/1/{first_year}", end=f"31/12/{last_year}")
 
-    # ------------------------------------------------------------------
-    # Compute sunrise/sunset and daylength
-    # ------------------------------------------------------------------
+    # compute sunrise, sunset, and daylength for each date
     records = []
     for date in dates:
         try:
@@ -92,9 +85,7 @@ def daylength(
     )
     df.set_index("date", inplace=True)
 
-    # ------------------------------------------------------------------
-    # Save results
-    # ------------------------------------------------------------------
+    # save results
     out_file = tmp_dir / f"{si}_daylength.csv"
     out_file.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_file)

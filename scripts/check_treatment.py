@@ -1,6 +1,9 @@
-#!/usr/bin/env python3
+# check_treatment.py — list all unique st_treatment values across SAPFLUXNET stand metadata.
+#
+# Standalone utility. Not part of the main analysis pipeline.
 
 from pathlib import Path
+
 import pandas as pd
 
 BASE_DIR = Path.home() / "DATA" / "SLAINTE" / "0.1.5" / "csv" / "plant"
@@ -31,7 +34,7 @@ def collect_unique_treatments(base_dir: Path):
         )
         treatments.update(values)
 
-    return sorted(treatments)
+    return sorted(treatments)  # alphabetically sorted unique treatment strings
 
 
 if __name__ == "__main__":
